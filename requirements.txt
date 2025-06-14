@@ -1,0 +1,6 @@
+git+https://github.com/Yepoleb/dayzquery.git
+git+https://github.com/Yepoleb/python-a2s.git
+requests==2.31.0
+beautifulsoup4==4.12.3
+pyyaml==6.0.1
+discord.py==2.3.2
