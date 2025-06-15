@@ -1,36 +1,36 @@
 # DayZ Server Monitor
 # Project: DayZ Server Monitor
 # File: monitor.py
-# Purpose: Main entry point for running the mod check process
+# Purpose: Entrypoint for the monitoring process
 # Author: Tig Campbell-Moore (firstname[at]lastname[dot]com)
 # License: CC BY-NC 4.0 (see LICENSE file)
 
 import logging
-from config_loader import load_config
-from logger import setup_logging
-from mod_checker import run_mod_check
+import sys
+import traceback
+
+import config_loader
+import mod_checker
+from templates import TemplateLoader
 
 def main():
     try:
-        config = load_config("config.yaml")
+        config = config_loader.load_config("config.yaml")
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s - %(levelname)s - %(message)s"
+        )
+
+        locale = config.get("locale", "en_GB")
+        templates = TemplateLoader(locale)
+
+        # Pass templates to mod_checker so all output routines have access
+        mod_checker.run_mod_check(config, templates)
+
     except Exception as e:
-        print(f"[FATAL] Failed to load config.yaml: {e}")
-        return
-
-    try:
-        setup_logging(config)
-    except Exception as e:
-        print(f"[FATAL] Failed to initialize logging: {e}")
-        return
-
-    logging.info("=== DayZ Server Monitor Started ===")
-
-    try:
-        run_mod_check(config)
-    except Exception as e:
-        logging.exception("Unhandled exception during mod check")
-
-    logging.info("=== DayZ Server Monitor Finished ===")
+        logging.error("Unhandled exception during mod check")
+        traceback.print_exc()
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

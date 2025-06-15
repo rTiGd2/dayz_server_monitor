@@ -202,10 +202,11 @@ Simulated test cases include:
 
 ## 🤖 Discord Integration
 
-1.  Create a bot at:  [https://discord.com/developers/applications](https://discord.com/developers/applications "https://discord.com/developers/applications")
-2.  Enable  **Message Content Intent**
-3.  Invite bot to your server
-4.  Use Developer Mode to get the channel ID
+1. Go to your Discord server and navigate to the channel you want messages posted in.
+2. Click the gear icon (Edit Channel) next to the channel name.
+3. Go to Integrations → Webhooks → New Webhook.
+4. Name the webhook (e.g., "DayZ Monitor") and select the channel.
+5. Copy the Webhook URL (it will look like https://discord.com/api/webhooks/XXXXXXXXX/YYYYYYYYYYYYYYYYY)
 
 ----------
 

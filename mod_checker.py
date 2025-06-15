@@ -16,14 +16,19 @@ import output_handler
 from templates import TemplateLoader
 from datetime import datetime, timedelta
 from modes import serial_mode, threaded_mode, async_mode
-import discord_notifier  # NEW: for summary dispatch
+import discord_notifier  # for summary dispatch
 
 PERF_LOG_FILE = "data/performance_log.csv"
 
-def run_mod_check(config):
+def run_mod_check(config, templates=None):
     if not config.get("mod_checking_enabled", True):
         logging.info("Mod checking disabled via config.")
         return
+
+    # Ensure templates is constructed if not passed
+    if templates is None:
+        locale = config.get("locale", "en_GB")
+        templates = TemplateLoader(locale)
 
     start_time = time.perf_counter()
     mode = config.get("mod_check_mode", "serial").lower()
@@ -41,10 +46,8 @@ def run_mod_check(config):
         output_handler.send_output(config, f"❌ Failed to query server: {e}")
         return
 
-    locale = config.get("locale", "en_GB")
-    templates = TemplateLoader(locale)
-
     # Compute next reboot time once, for use in both outputs
+    next_reboot = None
     if config['output'].get('show_next_reboot', True):
         base_hour, base_minute = map(int, config['reboot']['base_time'].split(":"))
         interval = config['reboot']['interval_minutes']
@@ -57,11 +60,6 @@ def run_mod_check(config):
                 break
         else:
             next_reboot = base + timedelta(days=1)
-
-        # Always print the local time version to the console/log/other outputs
-        output_handler.send_output(
-            config, f"Next reboot scheduled at: {next_reboot.strftime('%Y-%m-%d %H:%M:%S')}"
-        )
 
     previous_state = state_manager.load_state()
     current_state = {}
@@ -120,25 +118,30 @@ def run_mod_check(config):
     log_performance(mode, duration)
     summarize_performance()
 
-    # ✅ Discord summary output (respect silent_on_no_changes)
+    # ✅ Summary output (console, file, discord)
+    summary_message = output_handler.build_summary(
+        config, templates, server_info=info, next_reboot=next_reboot
+    )
+    output_handler.send_output(config, summary_message)
+
+    # Discord summary output (respect silent_on_no_changes)
     if config["output"].get("to_discord", False):
         if changes_detected or not config["output"].get("silent_on_no_changes", False):
             # Patch: Insert Discord timestamp for next reboot if show_next_reboot is enabled
-            summary_message = output_handler.get_discord_summary(config, templates)
-            if config['output'].get('show_next_reboot', True):
+            discord_message = summary_message
+            if config['output'].get('show_next_reboot', True) and next_reboot:
                 unix_ts = int(next_reboot.timestamp())
                 discord_time = f"<t:{unix_ts}:F>"
-                # Try to replace any pre-existing 'Next reboot scheduled at:' line
                 import re
-                if re.search(r"Next reboot scheduled at:.*", summary_message):
-                    summary_message = re.sub(
+                if re.search(r"Next reboot scheduled at:.*", discord_message):
+                    discord_message = re.sub(
                         r"Next reboot scheduled at:.*",
                         f"Next reboot scheduled at: {discord_time}",
-                        summary_message
+                        discord_message
                     )
                 else:
-                    summary_message += f"\nNext reboot scheduled at: {discord_time}"
-            discord_notifier.dispatch_discord(config, summary_message)
+                    discord_message += f"\nNext reboot scheduled at: {discord_time}"
+            discord_notifier.dispatch_discord(config, discord_message)
         else:
             logging.info("No mod changes detected and silent_on_no_changes is True; not sending Discord output.")
 

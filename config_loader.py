@@ -28,14 +28,14 @@ def load_config(filepath):
     config.setdefault("discord", {})
     config.setdefault("steam", {})
 
-    # Override Discord token
-    discord_token = (
+    # Override Discord webhook_url
+    webhook_url = (
         read_secret("discord_webhook_url")
         or config["discord"].get("webhook_url")
         or os.environ.get("DISCORD_WEBHOOK_URL")
     )
-    if discord_token:
-        config["discord"]["webhook_url"] = discord_token
+    if webhook_url:
+        config["discord"]["webhook_url"] = webhook_url
 
     # Override Steam API key
     steam_key = (

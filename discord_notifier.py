@@ -1,7 +1,7 @@
 # DayZ Server Monitor
 # Project: DayZ Server Monitor
 # File: discord_notifier.py
-# Purpose: Send output summaries to a configured Discord channel using bot token
+# Purpose: Send output summaries to a configured Discord channel using a webhook
 # Author: Tig Campbell-Moore (firstname[at]lastname[dot]com)
 # License: CC BY-NC 4.0 (see LICENSE file)
 
