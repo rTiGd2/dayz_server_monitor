@@ -1,9 +1,10 @@
 # DayZ Server Monitor
 # Project: DayZ Server Monitor
-# File: 
-# Purpose: 
+# File: mod_checker.py
+# Purpose: Run mod check, compare states, and output results
 # Author: Tig Campbell-Moore (firstname[at]lastname[dot]com)
 # License: CC BY-NC 4.0 (see LICENSE file)
+
 import logging
 import time
 import csv
@@ -15,6 +16,7 @@ import output_handler
 from templates import TemplateLoader
 from datetime import datetime, timedelta
 from modes import serial_mode, threaded_mode, async_mode
+import discord_notifier  # NEW: for summary dispatch
 
 PERF_LOG_FILE = "data/performance_log.csv"
 
@@ -24,9 +26,7 @@ def run_mod_check(config):
         return
 
     start_time = time.perf_counter()
-
     mode = config.get("mod_check_mode", "serial").lower()
-
     ip = config["server"]["ip"]
     port = config["server"]["port"]
 
@@ -41,22 +41,10 @@ def run_mod_check(config):
         output_handler.send_output(config, f"❌ Failed to query server: {e}")
         return
 
-    locale = config.get("locale", "en_US")
+    locale = config.get("locale", "en_UK")
     templates = TemplateLoader(locale)
 
-    # SERVER INFO OUTPUT (fully restored)
-    if config['output'].get('show_island', True):
-        output_handler.send_output(config, f"Island: {info['island']}")
-
-    if config['output'].get('show_platform', True):
-        output_handler.send_output(config, f"Platform: {info['platform']}")
-
-    if config['output'].get('show_dedicated', True):
-        output_handler.send_output(config, f"Dedicated: {info['dedicated']}")
-
-    if config['output'].get('show_mod_count', True):
-        output_handler.send_output(config, f"Mods installed: {info['mods_count']}")
-
+    # Compute next reboot time once, for use in both outputs
     if config['output'].get('show_next_reboot', True):
         base_hour, base_minute = map(int, config['reboot']['base_time'].split(":"))
         interval = config['reboot']['interval_minutes']
@@ -69,15 +57,16 @@ def run_mod_check(config):
                 break
         else:
             next_reboot = base + timedelta(days=1)
-        output_handler.send_output(config, f"Next reboot scheduled at: {next_reboot.strftime('%Y-%m-%d %H:%M:%S')}")
 
-    # STATE LOADING
+        # Always print the local time version to the console/log/other outputs
+        output_handler.send_output(
+            config, f"Next reboot scheduled at: {next_reboot.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+
     previous_state = state_manager.load_state()
     current_state = {}
 
     logging.info(f"Selected mode: {mode}")
-
-    # CORRECT MODE DISPATCH
     if mode == "serial":
         mod_results = serial_mode.run(config, info, mods)
     elif mode == "threaded":
@@ -88,7 +77,6 @@ def run_mod_check(config):
         logging.warning(f"Unknown mode {mode}, defaulting to serial.")
         mod_results = serial_mode.run(config, info, mods)
 
-    # STATE COMPARISON
     changes_detected = False
     for mod in mod_results:
         workshop_id = mod['workshop_id']
@@ -103,31 +91,28 @@ def run_mod_check(config):
 
         previous_mod = previous_state.get(workshop_id)
         if not previous_mod:
-            message = templates.format_template("mod_new.txt", title=title)
+            message = templates.format("output", "mod_new.txt", title=title)
             output_handler.send_output(config, message)
             changes_detected = True
         elif time_updated > previous_mod['time_updated']:
-            message = templates.format_template("mod_updated.txt", title=title, timestamp=timestamp)
+            message = templates.format("output", "mod_updated.txt", title=title, timestamp=timestamp)
             output_handler.send_output(config, message)
             changes_detected = True
 
-    # REMOVED MODS
     if config["output"].get("show_removed_mods", True):
         for workshop_id in previous_state:
             if workshop_id not in current_state:
                 removed_title = previous_state[workshop_id]['title']
-                message = templates.format_template("mod_removed.txt", title=removed_title)
+                message = templates.format("output", "mod_removed.txt", title=removed_title)
                 output_handler.send_output(config, message)
                 changes_detected = True
 
     state_manager.save_state(current_state)
 
-    if not changes_detected:
-        if not config["output"].get("silent_on_no_changes", False):
-            message = templates.format_template("no_changes.txt")
-            output_handler.send_output(config, message)
+    if not changes_detected and not config["output"].get("silent_on_no_changes", False):
+        message = templates.format("output", "no_changes.txt")
+        output_handler.send_output(config, message)
 
-    # Performance logging
     end_time = time.perf_counter()
     duration = end_time - start_time
     logging.info(f"Mod check completed in {duration:.2f} seconds using mode '{mode}'.")
@@ -135,8 +120,27 @@ def run_mod_check(config):
     log_performance(mode, duration)
     summarize_performance()
 
-
-# Performance logging functions:
+    # ✅ Discord summary output (respect silent_on_no_changes)
+    if config["output"].get("to_discord", False):
+        if changes_detected or not config["output"].get("silent_on_no_changes", False):
+            # Patch: Insert Discord timestamp for next reboot if show_next_reboot is enabled
+            summary_message = output_handler.get_discord_summary(config, templates)
+            if config['output'].get('show_next_reboot', True):
+                unix_ts = int(next_reboot.timestamp())
+                discord_time = f"<t:{unix_ts}:F>"
+                # Try to replace any pre-existing 'Next reboot scheduled at:' line
+                import re
+                if re.search(r"Next reboot scheduled at:.*", summary_message):
+                    summary_message = re.sub(
+                        r"Next reboot scheduled at:.*",
+                        f"Next reboot scheduled at: {discord_time}",
+                        summary_message
+                    )
+                else:
+                    summary_message += f"\nNext reboot scheduled at: {discord_time}"
+            discord_notifier.dispatch_discord(config, summary_message)
+        else:
+            logging.info("No mod changes detected and silent_on_no_changes is True; not sending Discord output.")
 
 def log_performance(mode, duration):
     os.makedirs(os.path.dirname(PERF_LOG_FILE), exist_ok=True)

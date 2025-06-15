@@ -1,57 +1,50 @@
+
 # DayZ Server Mod Monitor
 
----
+## WARNINGS/ISSUES
+
+This is currently out of date, most of the information is correct but know the following
+
+Discord integration has switched from BOT to Webhook (makes more sense) amd the example config.yaml in the project reflects this but this file does not.
+
+Docker is a work in progress, with little progress. It still uses the old Discord bot method, so either fix this (and feel free to contribute) or wait for my lazy ass to get around to it
 
 ## 🎯 Overview
 
-A simple DayZ server mod monitoring system.
+A robust, extensible system to monitor DayZ server mods, detect changes, and notify administrators via logs and Discord.
 
----
-
-## TODO
-
-- This file looks like a 5 year old wrote it, needs work
-- Some display toggle functionality not implemented (the thought is there, somewhat)
-- Actually test (and debug, and pray for luck) the Discord BOT
--- There are many thousands of Discord BOTS, you're better off using one of those!
-- Perhaps comment some code (and complete the comments already added
-- Stop doing initial commits at 5am, after 3 days awake!
-- Add functionality to create a Global Message XML to warn of upcoming mod update(s)
-- Fully integrate ALL text output as i18n (some errors still hardcoded!)
-- ReLearn Python, and the changes in the past 5 years since I last used it
-- Get Sleep
-- Get a Job
-- Touch Grass and Make Friends
-
----
+----------
 
 ## 🚀 Key Features
 
-- ✅ Queries DayZ server directly (using dayzquery)
-- ✅ Detects installed mods, version changes, new mods, and removed mods
-- ✅ Steam Workshop version checks
-- ✅ Changelog fetching via Steam scraping
-- ✅ Discord notifications
-- ✅ i18n translation system (fully localizable)
-- ✅ Multiple concurrency modes (serial / threaded / async)
-- ✅ State persistence across runs
-- ✅ Fully observable with logs & performance tracking
-- ✅ Fully automated unit test suite
+-   ✅ Queries live DayZ server (via  dayzquery)
+-   ✅ Detects mod additions, removals, and updates
+-   ✅ Pulls Steam Workshop metadata and changelogs
+-   ✅ Sends summary messages to Discord (optional)
+-   ✅ Full i18n localization support (template-driven)
+-   ✅ Supports async, threaded, or serial concurrency
+-   ✅ Detailed logging (with rotation & per-level files)
+-   ✅ State tracking across runs
+-   ✅ CLI and Docker support
+-   ✅ Unit-tested and extensible
 
----
+----------
 
 ## 🗂 Project Structure
-dayz_mod_monitor_rc9/
+
+DayZ_Server_Monitor/
 ├── monitor.py
+├── cli.py
 ├── config_loader.py
 ├── logger.py
+├── mod_checker.py
 ├── output_handler.py
 ├── server_query.py
-├── steam_api.py
-├── changelog_fetcher.py
-├── discord_notifier.py
 ├── state_manager.py
-├── mod_checker.py
+├── steam_api.py
+├── templates.py
+├── discord_notifyer.py
+├── changelog_fetcher.py
 │
 ├── modes/
 │ ├── serial_mode.py
@@ -59,139 +52,206 @@ dayz_mod_monitor_rc9/
 │ └── async_mode.py
 │
 ├── locales/
-│ ├── en_US/
 │ └── en_UK/
-│
-├── data/
-├── logs/
-├── output/
+│ ├── output/
+│ ├── logging/
+│ └── discord/
 │
 ├── tests/
-│ ├── test_server_connectivity.py
-│ ├── test_mod_update_detection.py
-│ └── test_server_unreachable.py
+├── output/
+├── logs/
+├── data/
 │
-├── rc9_bootstrap.sh
+├── docker/
+│ ├── Dockerfile.oneoff
+│ ├── Dockerfile.cron
+│ ├── entrypoint.sh
+│ ├── crontab.template
+│ └── secrets/
+│ ├── discord_token
+│ └── steam_api_key
+│
+├── config.yaml
 ├── requirements.txt
-├── README.md
-├── init_git_repo.sh
-├── git_commit_helper.sh
-└── git_checkout_helper.sh
+├── LICENSE
+└── README.md
 
+----------
 
----
+## ⚙️ Configuration
 
-## 🚀 Installation
+Edit config.yaml:
 
-### 1️⃣ Clone your repository (or generate files using dsm_bootstrap.sh)
+    server:
+       ip:  "your.server.ip"
+       port:  2302
+    reboot:
+       base_time:  "00:00"
+       interval_minutes:  240
+    locale:  "en_UK"
+    logging:
+       enabled:  true
+       level: DEBUG
+       log_dir: logs
+       files:
+          debug: debug.log
+          info: info.log
+          error: error.log
+          critical: critical.log
+    output:
+       to_console:  true
+       to_file:  true
+       to_discord:  true
+       file_path:  "output/last_run.txt"
+       show_removed_mods:  true
+       silent_on_no_changes:  false
+       show_island:  true
+       show_platform:  true
+       show_dedicated:  true
+       show_mod_count:  true
+       show_next_reboot:  true
+    mod_checking_enabled:  true
+    mod_check_mode: async # Options: async, threaded, serial
+    threaded_mode:
+       max_workers:  10
+    steam:
+       api_key:  "your_steam_api_key"
+    discord:
+       enabled:  true
+       token:  "YOUR_DISCORD_BOT_TOKEN"
+       channel_id:  123456789012345678`
 
-### 2️⃣ Create virtual environment:
+----------
 
-```bash
-python3 -m venv venv
-source venv/bin/activate
-3️⃣ Install dependencies:
-bash
-Copy code
-pip install -r requirements.txt
-⚙️ Configuration
-Edit your config.yaml file.
+## 🔐 Secrets, Environment, and Config Resolution
 
-yaml
-Copy code
-server:
-  ip: "your.server.ip"
-  port: 2303
+This project supports multiple methods for passing sensitive data such as:
 
-reboot:
-  base_time: "00:00"
-  interval_minutes: 240
+-   STEAM_API_KEY
+-   DISCORD_TOKEN
 
-locale: "en_US"
+They are resolved in the following priority:
 
-logging:
-  enabled: true
-  file: "logs/monitor.log"
+Docker Secret > config.yaml > Environment Variable
 
-output:
-  to_console: true
-  to_file: true
-  to_discord: false
-  file_path: "output/last_run.txt"
-  show_removed_mods: true
-  silent_on_no_changes: false
-  show_island: true
-  show_platform: true
-  show_dedicated: true
-  show_mod_count: true
-  show_next_reboot: true
+----------
 
-mod_checking_enabled: true
-mod_check_mode: async  # serial | threaded | async
+## 📁 Docker Secrets Setup
 
-steam:
-  api_key: "your_steam_api_key"
+For sensitive values, mount secret files to /run/secrets/:
 
-discord:
-  enabled: false
-  token: "YOUR_DISCORD_BOT_TOKEN"
-  channel_id: 123456789012345678
-🔑 Steam API Key
-Get your key from: https://steamcommunity.com/dev/apikey
-🤖 Discord Bot Setup
-Create a Discord bot at: https://discord.com/developers/applications
-Enable Message Content Intent
-Invite bot to server with required permissions
-Get your channel ID by enabling Developer Mode in Discord
-🖥 Supported Modes
-Mode	Config	Speed
-Serial	serial	Slowest
-Threaded	threaded	Recommended
-Async	async	Fastest
-🚀 Running the Monitor
-bash
-Copy code
-python monitor.py
-✅ Fully self-contained.
+    echo  "your-discord-token"  > discord_token
+    echo  "your-steam-api-key"  > steam_api_key
+    docker run -d \\
+      --secret source=discord_token,target=discord_token \\
+        --secret source=steam_api_key,target=steam_api_key \\
+          dayz_monitor_cron
 
-✅ Performance is logged automatically.
+Or with Docker Compose:
 
-🔬 Running Unit Tests
-1️⃣ From inside your virtual environment:
+    services:
+       dayzmonitor:
+          image: dayz_monitor_cron
+          secrets:
+             - discord_token
+             - steam_api_key
+            environment:
+               - CRON_SCHEDULE=*/10 * * * *
 
-bash
-Copy code
-python -m unittest discover tests
-2️⃣ ✅ Tests include:
+    secrets:
+       discord_token:
+          file: ./docker/secrets/discord_token
+       steam_api_key:
+          file: ./docker/secrets/steam_api_key
 
-Server connectivity test
-Mod update detection test
-Server failure handling test
-🚀 Performance Logging
-After every run, you'll see log entries like:
+----------
 
-2025-06-14 10:32:01 - INFO - Mod check completed in 7.91 seconds using mode 'threaded'
-2025-06-14 10:32:01 - INFO - Recent Performance Summary (last 20 runs):
-2025-06-14 10:32:01 - INFO - Mode: serial | Avg: 25.38 sec over 5 runs
-2025-06-14 10:32:01 - INFO - Mode: threaded | Avg: 7.92 sec over 8 runs
-2025-06-14 10:32:01 - INFO - Mode: async | Avg: 3.27 sec over 7 runs
+## 🌍 Environment Variables
 
----
+You can also provide these if secrets are not used:
+
+    export  DISCORD_TOKEN="your-discord-token"
+    export  STEAM_API_KEY="your-steam-api-key"
+    python monitor.py
+
+----------
+
+## 🧪 Testing
+
+Run all unit tests:
+
+    python -m unittest discover tests
+
+Simulated test cases include:
+
+-   ✅ Server unreachable (via port override)
+-   ✅ Mod update detection
+-   ✅ Output generation
+-   ✅ Template integrity
+
+----------
+
+## 🖥 Supported Modes
+
+|Mode  | Config Value | Notes
+|--|--|--|
+|Serial  | serial |Slow but simple |
+|Threaded |threaded | Fast, CPU-friendly|
+|Async |async |Fastest, scalable |
+
+----------
+
+## 🤖 Discord Integration
+
+1.  Create a bot at:  [https://discord.com/developers/applications](https://discord.com/developers/applications "https://discord.com/developers/applications")
+2.  Enable  **Message Content Intent**
+3.  Invite bot to your server
+4.  Use Developer Mode to get the channel ID
+
+----------
+
+## 🐳 Docker Support
+
+### One-Time Run
+
+    docker build -f docker/Dockerfile.oneoff -t dayz_monitor .
+    docker run --rm -v $PWD:/app dayz_monitor
+
+### Cron-Enabled Image
+
+This version includes a flexible schedule.
+
+    docker build -f docker/Dockerfile.cron -t dayz_monitor_cron .
+    docker run -d -e CRON_SCHEDULE="*/10 * * * *" dayz_monitor_cron
+
+**Default:** */5 * * * * (every 5 minutes)
+
+-   ✅ Only the frequency is user-configurable
+-   ✅ The monitored command cannot be changed
+-   ✅ Environment variable  CRON_SCHEDULE  is injected into a crontab template
+
+----------
+
+## 📝 Performance Logging
+
+Performance logs written to data/performance_log.csv. Summary displayed after each run:
+
+Mod check completed in 3.27 seconds using mode 'async'
+Recent Performance Summary (last 20 runs):
+Mode: serial | Avg: 25.38 sec
+Mode: threaded | Avg: 7.92 sec
+Mode: async | Avg: 3.27 sec
+
+----------
 
 ## 📄 License
 
-This project is licensed under the **Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)**.
+Licensed under **Creative Commons BY-NC 4.0**
+Commercial use requires written permission.
 
-- ✅ You are free to use, modify, and redistribute this code for non-commercial purposes.
-- ✅ Commercial use requires prior written permission from the author.
+More info: [https://creativecommons.org/licenses/by-nc/4.0/](https://creativecommons.org/licenses/by-nc/4.0/ "https://creativecommons.org/licenses/by-nc/4.0/")
 
-Full license text is provided in the `LICENSE` file.
+**Author:** Tig Campbell-Moore
+**Contact:** firstname[at]lastname[dot]com
 
-For commercial licensing requests or legal inquiries, please contact:
-
-**Author:** Tig Campbell-Moore  
-**Email:** firstname[at]surname[dot]com
-
-License URL: [https://creativecommons.org/licenses/by-nc/4.0/](https://creativecommons.org/licenses/by-nc/4.0/)
-
----# DayZ_Server_Monitor
+----------

@@ -1,9 +1,10 @@
 # DayZ Server Monitor
 # Project: DayZ Server Monitor
-# File: 
-# Purpose: 
+# File: server_query.py
+# Purpose: Query DayZ server and extract mod and system metadata
 # Author: Tig Campbell-Moore (firstname[at]lastname[dot]com)
 # License: CC BY-NC 4.0 (see LICENSE file)
+
 import dayzquery
 import logging
 
@@ -19,18 +20,14 @@ def query_server(ip, port):
         raise
 
     info = {
-        "island": ruleset.island,
-        "platform": ruleset.platform,
-        "dedicated": ruleset.dedicated,
-        "time_left": ruleset.time_left,
-        "mods_count": ruleset.mods_count
+        "island": getattr(ruleset, "island", "Unknown"),
+        "platform": getattr(ruleset, "platform", "Unknown"),
+        "dedicated": getattr(ruleset, "dedicated", False),
+        "time_left": getattr(ruleset, "time_left", 0),
+        "mods_count": getattr(ruleset, "mods_count", 0)
     }
 
-    mods = []
-    for mod in ruleset.mods:
-        mods.append({
-            'name': mod.name,
-            'workshop_id': str(mod.workshop_id)
-        })
+    mods = [{'name': mod.name, 'workshop_id': str(mod.workshop_id)} for mod in ruleset.mods]
 
+    logging.debug(f"Queried server: {info['platform']} on {info['island']} with {len(mods)} mods.")
     return info, mods

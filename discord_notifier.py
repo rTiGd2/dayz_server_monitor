@@ -1,38 +1,32 @@
 # DayZ Server Monitor
 # Project: DayZ Server Monitor
-# File: 
-# Purpose: 
+# File: discord_notifier.py
+# Purpose: Send output summaries to a configured Discord channel using bot token
 # Author: Tig Campbell-Moore (firstname[at]lastname[dot]com)
 # License: CC BY-NC 4.0 (see LICENSE file)
-import discord
-import asyncio
+
+import requests
 import logging
 
-async def send_discord_message(token, channel_id, message):
-    intents = discord.Intents.default()
-    client = discord.Client(intents=intents)
-
-    @client.event
-    async def on_ready():
-        channel = client.get_channel(channel_id)
-        if channel:
-            await channel.send(message)
-            logging.info("Discord message sent successfully.")
-        else:
-            logging.error("Discord channel not found.")
-        await client.close()
-
+def send_discord_webhook(webhook_url: str, message: str) -> None:
+    data = {"content": message}
     try:
-        await client.start(token)
+        resp = requests.post(webhook_url, json=data, timeout=10)
+        if resp.status_code == 204:
+            logging.info("✅ Discord summary message sent.")
+        else:
+            logging.error(f"❌ Discord webhook returned status {resp.status_code}: {resp.text}")
     except Exception as e:
-        logging.exception(f"Failed to send Discord message: {e}")
+        logging.error(f"❌ Exception during Discord webhook operation: {e}")
 
-def dispatch_discord(config, message):
+def dispatch_discord(config: dict, message: str) -> None:
     if not config.get("discord", {}).get("enabled", False):
-        logging.info("Discord integration disabled.")
+        logging.info("📭 Discord integration disabled.")
         return
 
-    token = config["discord"]["token"]
-    channel_id = int(config["discord"]["channel_id"])
+    webhook_url = config["discord"].get("webhook_url")
+    if not webhook_url:
+        logging.error("🔒 Discord webhook_url is missing in config.")
+        return
 
-    asyncio.run(send_discord_message(token, channel_id, message))
+    send_discord_webhook(webhook_url, message)

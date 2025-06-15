@@ -1,0 +1,1 @@
+{{CRON_SCHEDULE}} cd /app && python monitor.py >> /app/logs/cron.log 2>&1

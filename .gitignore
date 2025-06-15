@@ -1,0 +1,113 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# VSCode settings
+.vscode/
+!.vscode/settings.json
+!.vscode/launch.json
+
+# Workspace config
+*.code-workspace
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Docker
+docker-compose.override.yml
+docker/output/
+docker/secrets/
+*.log
+*.pid
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+pytest_cache/
+tests/__pycache__/
+
+# Virtual environments
+.env/
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Secrets and environment
+.env
+.env.*
+*.secrets
+secrets/
+*.key
+*.pem
+*.crt
+
+# Output files
+output/
+logs/
+*.bak
+*.tmp
+
+# System files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+Desktop.ini
+
+# IDEs
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Python language server
+.pyre/
+.pytype/
+.mypy_cache/
+
+# Lock files
+Pipfile.lock
+poetry.lock
+
+# Wheel and binary artifacts
+*.whl
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Project-specific
+data/previous_run.json
+data/performance_log.csv

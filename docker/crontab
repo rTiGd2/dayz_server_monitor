@@ -1,0 +1,2 @@
+# Run DayZ Monitor every 2 hours
+0 */2 * * * cd /app && python monitor.py >> /app/logs/cron.log 2>&1

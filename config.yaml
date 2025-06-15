@@ -1,22 +1,30 @@
+# DayZ Server Monitor Configuration
+
 server:
-  ip: "0.0.0.0"
-  port: 2303
+  ip: "127.0.0.1"
+  port: 2302
 
 reboot:
-  base_time: "00:00"
-  interval_minutes: 240
+  base_time: "01:00"
+  interval_minutes: 180
 
-locale: "en_UK"  # Switch to "en_UK" for British English
+locale: "en_UK"
 
 logging:
   enabled: true
-  file: "logs/monitor.log"
+  level: DEBUG
+  log_dir: logs
+  files:
+    debug: debug.log
+    info: info.log
+    error: error.log
+    critical: critical.log
 
 output:
   to_console: true
   to_file: true
-  to_discord: false
-  file_path: "output/last_run.txt"
+  to_discord: true
+  file_path: output/last_run.txt
   show_removed_mods: true
   silent_on_no_changes: false
   show_island: true
@@ -26,12 +34,14 @@ output:
   show_next_reboot: true
 
 mod_checking_enabled: true
-mod_check_mode: async  # serial | threaded | async
+mod_check_mode: async  # Options: async, threaded, serial
+
+threaded_mode:
+  max_workers: 10
 
 steam:
-  api_key: "YOUR_STEAM_API_KEY"
+  api_key: ""  # Optional: used if you want authenticated requests
 
 discord:
-  enabled: false
-  token: "YOUR_DISCORD_BOT_TOKEN"
-  channel_id: 123456789012345678
+  enabled: true
+  webhook_url: https://discord.com/api/webhooks/<some really stupidly long hash>

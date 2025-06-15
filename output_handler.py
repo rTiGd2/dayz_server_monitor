@@ -1,13 +1,13 @@
 # DayZ Server Monitor
 # Project: DayZ Server Monitor
-# File: 
-# Purpose: 
+# File: output_handler.py
+# Purpose: Handle and store all output messages for file, console, and Discord
 # Author: Tig Campbell-Moore (firstname[at]lastname[dot]com)
 # License: CC BY-NC 4.0 (see LICENSE file)
+
 import logging
 import os
 
-# Master list to collect all messages (for Discord and file output)
 output_messages = []
 
 def send_output(config, message):
@@ -16,7 +16,6 @@ def send_output(config, message):
 
     output_messages.append(message)
 
-    # Write to file live
     if config['output'].get("to_file", True):
         file_path = config['output'].get("file_path", "output/last_run.txt")
         try:
@@ -28,3 +27,10 @@ def send_output(config, message):
 
 def get_all_output():
     return "\n".join(output_messages)
+
+def get_discord_summary(config, templates):
+    """
+    Returns the entire run output wrapped in a Discord template.
+    """
+    body = "\n".join(output_messages)
+    return templates.format("discord", "summary.txt", body=body)
