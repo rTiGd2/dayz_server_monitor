@@ -39,11 +39,11 @@ def run_mod_check(config, templates=None):
         info, mods = server_query.query_server(ip, port)
     except TimeoutError:
         logging.error(f"Server query timed out at {ip}:{port}")
-        output_handler.send_output(config, f"❌ Failed to query server: Timed out at {ip}:{port}")
+        output_handler.output_messages.append(f"❌ Failed to query server: Timed out at {ip}:{port}")
         return
     except Exception as e:
         logging.exception(f"Server query failed: {e}")
-        output_handler.send_output(config, f"❌ Failed to query server: {e}")
+        output_handler.output_messages.append(f"❌ Failed to query server: {e}")
         return
 
     # Compute next reboot time once, for use in both outputs
@@ -90,11 +90,11 @@ def run_mod_check(config, templates=None):
         previous_mod = previous_state.get(workshop_id)
         if not previous_mod:
             message = templates.format("output", "mod_new.txt", title=title)
-            output_handler.send_output(config, message)
+            output_handler.output_messages.append(message)
             changes_detected = True
         elif time_updated > previous_mod['time_updated']:
             message = templates.format("output", "mod_updated.txt", title=title, timestamp=timestamp)
-            output_handler.send_output(config, message)
+            output_handler.output_messages.append(message)
             changes_detected = True
 
     if config["output"].get("show_removed_mods", True):
@@ -102,14 +102,14 @@ def run_mod_check(config, templates=None):
             if workshop_id not in current_state:
                 removed_title = previous_state[workshop_id]['title']
                 message = templates.format("output", "mod_removed.txt", title=removed_title)
-                output_handler.send_output(config, message)
+                output_handler.output_messages.append(message)
                 changes_detected = True
 
     state_manager.save_state(current_state)
 
     if not changes_detected and not config["output"].get("silent_on_no_changes", False):
         message = templates.format("output", "no_changes.txt")
-        output_handler.send_output(config, message)
+        output_handler.output_messages.append(message)
 
     end_time = time.perf_counter()
     duration = end_time - start_time
@@ -118,7 +118,7 @@ def run_mod_check(config, templates=None):
     log_performance(mode, duration)
     summarize_performance()
 
-    # ✅ Summary output (console, file, discord)
+    # ✅ Output only the summary (console, file, discord)
     summary_message = output_handler.build_summary(
         config, templates, server_info=info, next_reboot=next_reboot
     )
