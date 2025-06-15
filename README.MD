@@ -118,8 +118,7 @@ Edit config.yaml:
        api_key:  "your_steam_api_key"
     discord:
        enabled:  true
-       token:  "YOUR_DISCORD_BOT_TOKEN"
-       channel_id:  123456789012345678`
+       webhook_url: https://discord.com/api/webhooks/<some really stupidly long hash>`
 
 ----------
 
