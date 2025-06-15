@@ -30,7 +30,7 @@ def load_config(filepath):
 
     # Override Discord token
     discord_token = (
-        read_secret("webhook_url")
+        read_secret("discord_webhook_url")
         or config["discord"].get("webhook_url")
         or os.environ.get("DISCORD_WEBHOOK_URL")
     )

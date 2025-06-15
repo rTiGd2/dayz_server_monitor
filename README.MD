@@ -68,7 +68,7 @@ DayZ_Server_Monitor/
 │ ├── entrypoint.sh
 │ ├── crontab.template
 │ └── secrets/
-│ ├── discord_token
+│ ├── discord_webhook_url
 │ └── steam_api_key
 │
 ├── config.yaml
@@ -127,7 +127,7 @@ Edit config.yaml:
 This project supports multiple methods for passing sensitive data such as:
 
 -   STEAM_API_KEY
--   DISCORD_TOKEN
+-   DISCORD_WEBHOOK_URL
 
 They are resolved in the following priority:
 
@@ -139,12 +139,12 @@ Docker Secret > config.yaml > Environment Variable
 
 For sensitive values, mount secret files to /run/secrets/:
 
-    echo  "your-discord-token"  > discord_token
+    echo  "your-discord-webhook-url"  > discord_webhook_url
     echo  "your-steam-api-key"  > steam_api_key
     docker run -d \\
-      --secret source=discord_token,target=discord_token \\
-        --secret source=steam_api_key,target=steam_api_key \\
-          dayz_monitor_cron
+      --secret source=discord_webhook_urln,target=discord_webhook_url \\
+      --secret source=steam_api_key,target=steam_api_key \\
+      dayz_monitor_cron
 
 Or with Docker Compose:
 
@@ -152,14 +152,14 @@ Or with Docker Compose:
        dayzmonitor:
           image: dayz_monitor_cron
           secrets:
-             - discord_token
+             - discord_webhook_url
              - steam_api_key
             environment:
                - CRON_SCHEDULE=*/10 * * * *
 
     secrets:
        discord_token:
-          file: ./docker/secrets/discord_token
+          file: ./docker/secrets/discord_webhook_url
        steam_api_key:
           file: ./docker/secrets/steam_api_key
 
@@ -169,7 +169,7 @@ Or with Docker Compose:
 
 You can also provide these if secrets are not used:
 
-    export  DISCORD_TOKEN="your-discord-token"
+    export  DISCORD_WEBHOOK_URL="your-discord-webhook_url"
     export  STEAM_API_KEY="your-steam-api-key"
     python monitor.py
 
