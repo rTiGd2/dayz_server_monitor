@@ -10,17 +10,17 @@ from templates import TemplateLoader
 import server_query
 
 def test_template_loader_success():
-    loader = TemplateLoader("en_UK")
+    loader = TemplateLoader("en_GB")
     result = loader.format("output", "mod_new.txt", title="Test Mod")
     assert "Test Mod" in result
 
 def test_template_loader_missing_placeholder():
-    loader = TemplateLoader("en_UK")
+    loader = TemplateLoader("en_GB")
     result = loader.format("output", "mod_new.txt")  # Missing 'title'
     assert "[[ MISSING TEMPLATE" not in result  # Should return template even if formatting fails
 
 def test_template_loader_missing_file():
-    loader = TemplateLoader("en_UK")
+    loader = TemplateLoader("en_GB")
     result = loader.format("output", "does_not_exist.txt")
     assert "[[ MISSING TEMPLATE:" in result
 

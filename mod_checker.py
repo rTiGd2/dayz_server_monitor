@@ -41,7 +41,7 @@ def run_mod_check(config):
         output_handler.send_output(config, f"❌ Failed to query server: {e}")
         return
 
-    locale = config.get("locale", "en_UK")
+    locale = config.get("locale", "en_GB")
     templates = TemplateLoader(locale)
 
     # Compute next reboot time once, for use in both outputs

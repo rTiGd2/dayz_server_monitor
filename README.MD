@@ -43,7 +43,7 @@ DayZ_Server_Monitor/
 ├── state_manager.py
 ├── steam_api.py
 ├── templates.py
-├── discord_notifyer.py
+├── discord_notifier.py
 ├── changelog_fetcher.py
 │
 ├── modes/
@@ -52,7 +52,7 @@ DayZ_Server_Monitor/
 │ └── async_mode.py
 │
 ├── locales/
-│ └── en_UK/
+│ └── en_GB/
 │ ├── output/
 │ ├── logging/
 │ └── discord/
@@ -88,7 +88,7 @@ Edit config.yaml:
     reboot:
        base_time:  "00:00"
        interval_minutes:  240
-    locale:  "en_UK"
+    locale:  "en_GB"
     logging:
        enabled:  true
        level: DEBUG
