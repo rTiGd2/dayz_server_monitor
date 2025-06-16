@@ -16,17 +16,17 @@ import os
 import json
 import re
 from datetime import datetime, timedelta
-import server_query
-import output_handler
-from templates import TemplateLoader
-import discord_notifier
-import steam_api
+from src import server_query
+from src import output_handler
+from src.templates import TemplateLoader
+from src import discord_notifier
+from src import steam_api
 
-import modes.serial_mode as serial_mode
-import modes.threaded_mode as threaded_mode
-import modes.async_mode as async_mode
+from src.modes import serial_mode as serial_mode
+from src.modes import threaded_mode as threaded_mode
+from src.modes import async_mode as async_mode
 
-from server_monitor_tracker import (
+from src.server_monitor_tracker import (
     update_performance,
     load_performance_stats,
     save_mod_tracking,

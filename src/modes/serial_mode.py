@@ -6,7 +6,7 @@
 # License: CC BY-NC 4.0 (see LICENSE file)
 
 import logging
-import steam_api
+from src import steam_api
 
 def run(config, info, mods):
     logging.info("[SERIAL] Running SERIAL mode with %d mods", len(mods))

@@ -5,7 +5,7 @@
 # Author: Tig Campbell-Moore (firstname[at]lastname[dot]com)
 # License: CC BY-NC 4.0 (see LICENSE file)
 
-import dayzquery
+import dayzquery # type: ignore
 import logging
 
 def query_server(ip, port):

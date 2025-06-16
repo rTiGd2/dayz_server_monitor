@@ -7,7 +7,7 @@
 
 import logging
 import concurrent.futures
-import steam_api
+from src import steam_api
 
 def fetch(mod):
     workshop_id = mod.get('workshop_id')
