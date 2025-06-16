@@ -16,7 +16,7 @@ import output_handler
 from templates import TemplateLoader
 from datetime import datetime, timedelta
 from modes import serial_mode, threaded_mode, async_mode
-import discord_notifier  # for summary dispatch
+import discord_notifier
 
 PERF_LOG_FILE = "data/performance_log.csv"
 
@@ -76,11 +76,12 @@ def run_mod_check(config, templates=None):
         mod_results = serial_mode.run(config, info, mods)
 
     changes_detected = False
+    mod_messages = []  # Collect mod messages for summary and Discord output
+
     for mod in mod_results:
         workshop_id = mod['workshop_id']
         title = mod['title']
         time_updated = mod['time_updated']
-        timestamp = datetime.fromtimestamp(time_updated).strftime("%Y-%m-%d %H:%M:%S")
 
         current_state[workshop_id] = {
             "title": title,
@@ -88,28 +89,48 @@ def run_mod_check(config, templates=None):
         }
 
         previous_mod = previous_state.get(workshop_id)
+        # Prepare both time formats
+        local_time = datetime.fromtimestamp(time_updated).strftime("%Y-%m-%d %H:%M:%S")
+        discord_time = f"<t:{int(time_updated)}:F>"
+
         if not previous_mod:
-            message = templates.format("output", "mod_new.txt", title=title)
-            output_handler.output_messages.append(message)
+            mod_messages.append({
+                "type": "new",
+                "title": title,
+                "local_time": local_time,
+                "discord_time": discord_time
+            })
             changes_detected = True
         elif time_updated > previous_mod['time_updated']:
-            message = templates.format("output", "mod_updated.txt", title=title, timestamp=timestamp)
-            output_handler.output_messages.append(message)
+            mod_messages.append({
+                "type": "updated",
+                "title": title,
+                "local_time": local_time,
+                "discord_time": discord_time
+            })
             changes_detected = True
 
     if config["output"].get("show_removed_mods", True):
         for workshop_id in previous_state:
             if workshop_id not in current_state:
                 removed_title = previous_state[workshop_id]['title']
-                message = templates.format("output", "mod_removed.txt", title=removed_title)
-                output_handler.output_messages.append(message)
+                mod_messages.append({
+                    "type": "removed",
+                    "title": removed_title,
+                    "local_time": "",
+                    "discord_time": ""
+                })
                 changes_detected = True
 
     state_manager.save_state(current_state)
 
     if not changes_detected and not config["output"].get("silent_on_no_changes", False):
-        message = templates.format("output", "no_changes.txt")
-        output_handler.output_messages.append(message)
+        mod_messages.append({
+            "type": "no_changes",
+            "title": "",
+            "local_time": "",
+            "discord_time": ""
+        })
 
     end_time = time.perf_counter()
     duration = end_time - start_time
@@ -118,32 +139,59 @@ def run_mod_check(config, templates=None):
     log_performance(mode, duration)
     summarize_performance()
 
-    # ✅ Output only the summary (console, file, discord)
-    summary_message = output_handler.build_summary(
-        config, templates, server_info=info, next_reboot=next_reboot
+    # Output only the summary (console, file, discord)
+    summary_message = build_summary_with_mods(
+        config, templates, mod_messages, server_info=info, next_reboot=next_reboot, output_to_discord=False
     )
     output_handler.send_output(config, summary_message)
 
     # Discord summary output (respect silent_on_no_changes)
     if config["output"].get("to_discord", False):
         if changes_detected or not config["output"].get("silent_on_no_changes", False):
-            # Patch: Insert Discord timestamp for next reboot if show_next_reboot is enabled
-            discord_message = summary_message
-            if config['output'].get('show_next_reboot', True) and next_reboot:
-                unix_ts = int(next_reboot.timestamp())
-                discord_time = f"<t:{unix_ts}:F>"
-                import re
-                if re.search(r"Next reboot scheduled at:.*", discord_message):
-                    discord_message = re.sub(
-                        r"Next reboot scheduled at:.*",
-                        f"Next reboot scheduled at: {discord_time}",
-                        discord_message
-                    )
-                else:
-                    discord_message += f"\nNext reboot scheduled at: {discord_time}"
-            discord_notifier.dispatch_discord(config, discord_message)
+            discord_summary_message = build_summary_with_mods(
+                config, templates, mod_messages, server_info=info, next_reboot=next_reboot, output_to_discord=True
+            )
+            discord_notifier.dispatch_discord(config, discord_summary_message)
         else:
             logging.info("No mod changes detected and silent_on_no_changes is True; not sending Discord output.")
+
+def build_summary_with_mods(config, templates, mod_messages, server_info, next_reboot, output_to_discord=False):
+    summary_lines = []
+    summary_lines.append("**📢 DayZ Server Monitor Summary**")
+    summary_lines.append("------------------------------------")
+
+    # Per-mod output
+    for msg in mod_messages:
+        if msg["type"] == "new":
+            line = templates.format("output", "mod_new.txt", title=msg["title"])
+            summary_lines.append(line)
+        elif msg["type"] == "updated":
+            timestamp = msg["discord_time"] if output_to_discord else msg["local_time"]
+            line = templates.format(
+                "output", "mod_updated.txt", title=msg["title"], timestamp=timestamp
+            )
+            summary_lines.append(line)
+        elif msg["type"] == "removed":
+            line = templates.format("output", "mod_removed.txt", title=msg["title"])
+            summary_lines.append(line)
+        elif msg["type"] == "no_changes":
+            line = templates.format("output", "no_changes.txt")
+            summary_lines.append(line)
+
+    # Map/server info
+    if server_info.get("map"):
+        summary_lines.append(f"Map: {server_info['map']}")
+
+    # Next reboot
+    if config['output'].get('show_next_reboot', True) and next_reboot:
+        if output_to_discord:
+            unix_ts = int(next_reboot.timestamp())
+            discord_time = f"<t:{unix_ts}:F>"
+            summary_lines.append(f"Next reboot scheduled at: {discord_time}")
+        else:
+            summary_lines.append(f"Next reboot scheduled at: {next_reboot.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    return "\n".join(summary_lines)
 
 def log_performance(mode, duration):
     os.makedirs(os.path.dirname(PERF_LOG_FILE), exist_ok=True)
