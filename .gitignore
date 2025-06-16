@@ -76,7 +76,7 @@ secrets/
 *.crt
 
 # Output files
-output/
+./output/
 logs/
 *.bak
 *.tmp
