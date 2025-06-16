@@ -285,7 +285,6 @@ mods:
   mod_check_mode: async
   show_mod_changelog: true
   max_changelog_lines: 2
-  show_mod_links: true
   report_limit: 10
 ```
 

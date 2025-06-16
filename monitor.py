@@ -22,28 +22,28 @@ from src.server_monitor_tracker import (
 
 def main():
     try:
-        configs, required = load_configs("config")
+        # Updated: load_configs now returns (raw_configs, required, validated_pydantic_configs)
+        raw_configs, required, pydantic_configs = load_configs("config")
 
-        for config in configs:
-            logger = AdvancedLogger(config, "error")
-            if not validate_required(config, required, logger):
-                logger.error(f"Skipping server {config.get('server_name', config.get('_config_file'))} due to missing required config.")
+        for raw_config, pydantic_config in zip(raw_configs, pydantic_configs):
+            # Use raw_config for legacy dict-based code, pydantic_config for new-style attribute access
+            logger = AdvancedLogger(raw_config, "error")
+            if not validate_required(raw_config, required, logger):
+                logger.error(f"Skipping server {raw_config.get('server_name', raw_config.get('_config_file'))} due to missing required config.")
                 continue
 
-            server_name = config.get("server_name", config.get("_config_file", "unnamed_server").replace(".yaml", ""))
+            server_name = raw_config.get("server_name", raw_config.get("_config_file", "unnamed_server").replace(".yaml", ""))
 
             logger.info(f"Starting monitor for {server_name}")
 
-            locale = config.get("locale", "en_GB")
+            # Use locale from config (raw or pydantic)
+            locale = getattr(pydantic_config, "locale", None) or raw_config.get("locale", "en_GB")
             templates = TemplateLoader(locale)
 
             try:
                 # --- Run mod check and track mods ---
-                # mod_checker.run_mod_check should return the current mod list and performance stats
-                # If your mod_checker.run_mod_check does not return these, you should modify it accordingly.
-                # For now, we stub with empty lists/dicts if not returned.
-
-                mod_check_result = mod_checker.run_mod_check(config, templates)
+                # Pass raw_config for legacy code. Update to use pydantic_config where possible.
+                mod_check_result = mod_checker.run_mod_check(raw_config, templates)
                 if isinstance(mod_check_result, tuple) and len(mod_check_result) == 2:
                     current_mod_list, performance_stats = mod_check_result
                 else:
