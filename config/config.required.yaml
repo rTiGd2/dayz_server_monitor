@@ -1,0 +1,22 @@
+required:
+  server.ip:
+    type: str
+    description: "IP address of the server"
+  server.port:
+    type: int
+    description: "Port number for the server"
+  server_name:
+    type: str
+    description: "Display name for the server"
+  log_dir:
+    type: str
+    description: "Directory for log files"
+  log_rotation.max_bytes:
+    type: int
+    description: "Max log file size before rotation"
+  log_rotation.backup_count:
+    type: int
+    description: "Number of rotated logs to keep"
+  output.to_discord:
+    type: bool
+    description: "Enable Discord integration"

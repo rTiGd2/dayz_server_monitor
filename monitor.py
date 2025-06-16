@@ -1,42 +1,81 @@
 # DayZ Server Monitor
 # Project: DayZ Server Monitor
 # File: monitor.py
-# Purpose: Entrypoint for the monitoring process
+# Purpose: Entrypoint for the monitoring process, with multi-server support, config defaults, required validation, advanced logging/rotation,
+#          and persistent tracking of mod changes and per-server performance.
 # Author: Tig Campbell-Moore (firstname[at]lastname[dot]com)
 # License: CC BY-NC 4.0 (see LICENSE file)
 
-import logging
 import sys
 import traceback
-import config_loader
+from config_loader import load_configs, validate_required
+from advanced_logging import AdvancedLogger
 import mod_checker
 from templates import TemplateLoader
 
+# Import tracking utilities
+from server_monitor_tracker import (
+    detect_mod_changes,
+    update_performance,
+    load_performance_stats,
+)
+
 def main():
     try:
-        config = config_loader.load_config("config.yaml")
+        configs, required = load_configs("config")
 
-        logfile = config.get("logfiles", "monitor.log")
-        log_level = config.get("loglevel", "INFO").upper()
+        for config in configs:
+            logger = AdvancedLogger(config, "error")
+            if not validate_required(config, required, logger):
+                logger.error(f"Skipping server {config.get('server_name', config.get('_config_file'))} due to missing required config.")
+                continue
 
-        # Remove all handlers associated with the root logger before setting up new configuration
-        for handler in logging.root.handlers[:]:
-            logging.root.removeHandler(handler)
+            server_name = config.get("server_name", config.get("_config_file", "unnamed_server").replace(".yaml", ""))
 
-        logging.basicConfig(
-            level=getattr(logging, log_level),
-            format="%(asctime)s - %(levelname)s - %(message)s",
-            filename=logfile,
-            filemode="a"
-        )
+            logger.info(f"Starting monitor for {server_name}")
 
-        locale = config.get("locale", "en_GB")
-        templates = TemplateLoader(locale)
+            locale = config.get("locale", "en_GB")
+            templates = TemplateLoader(locale)
 
-        mod_checker.run_mod_check(config, templates)
+            try:
+                # --- Run mod check and track mods ---
+                # mod_checker.run_mod_check should return the current mod list and performance stats
+                # If your mod_checker.run_mod_check does not return these, you should modify it accordingly.
+                # For now, we stub with empty lists/dicts if not returned.
+
+                mod_check_result = mod_checker.run_mod_check(config, templates)
+                if isinstance(mod_check_result, tuple) and len(mod_check_result) == 2:
+                    current_mod_list, performance_stats = mod_check_result
+                else:
+                    # Backward compatibility: only mod list returned, or nothing returned
+                    current_mod_list = mod_check_result if isinstance(mod_check_result, list) else []
+                    performance_stats = {}
+
+                # --- Mod change detection and persistence ---
+                added_mods, removed_mods = detect_mod_changes(server_name, current_mod_list)
+                if added_mods or removed_mods:
+                    logger.info(f"Server {server_name}: Mods changed!")
+                    if added_mods:
+                        logger.info(f"Added mods: {added_mods}")
+                    if removed_mods:
+                        logger.info(f"Removed mods: {removed_mods}")
+                else:
+                    logger.info(f"Server {server_name}: No mod changes detected.")
+
+                # --- Performance tracking and persistence ---
+                if performance_stats:
+                    update_performance(server_name, performance_stats)
+                    last_stats = load_performance_stats(server_name)
+                    logger.info(f"Server {server_name} last performance: {last_stats}")
+
+            except Exception as e:
+                logger.error("Unhandled exception during mod check")
+                logger.error(traceback.format_exc())
+                # Continue with next server instead of exiting the whole process
 
     except Exception as e:
-        logging.error("Unhandled exception during mod check")
+        # If config loading or top-level fails, log to stderr and exit
+        print("Critical: unhandled exception during monitor startup", file=sys.stderr)
         traceback.print_exc()
         sys.exit(1)
 

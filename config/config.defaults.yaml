@@ -1,0 +1,60 @@
+# config.defaults.yaml - Default settings for DayZ Server Monitor
+
+# Locale for messages
+locale: "en_UK"
+
+# Logging settings
+logging:
+  enabled: true
+  level: INFO
+  log_dir: logs
+  files:
+    debug: debug.log
+    info: info.log
+    error: error.log
+    critical: critical.log
+
+log_rotation:
+  enabled: true
+  max_bytes: 50M
+  min_days: 3
+  backup_count: 10
+  daily: true
+  rotate_time: "02:00"
+  compress: gz
+
+# Output defaults
+output:
+  to_console: true
+  to_file: false
+  to_discord: false
+  file_path: output/last_run.txt
+  show_removed_mods: true
+  silent_on_no_changes: true
+  show_island: true
+  show_platform: false
+  show_dedicated: false
+  show_mod_count: false
+  show_next_reboot: true
+
+# Mod checking defaults (must be under mods:)
+mods:
+  mod_checking_enabled: true
+  mod_check_mode: serial
+  show_mod_changelog: true
+  max_changelog_lines: 2
+  show_mod_links: true
+  report_limit: 10   # Maximum number of mod updates to report to Discord in detail
+
+# Threaded mode defaults
+threaded_mode:
+  max_workers: 10
+
+# Steam API key (optional)
+steam:
+  api_key: ""
+
+# Discord integration defaults
+discord:
+  enabled: false
+  webhook_url: ""

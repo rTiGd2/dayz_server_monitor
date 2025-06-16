@@ -1,0 +1,34 @@
+# DayZ Server Monitor Configuration
+
+locale: "en_GB"
+
+logging:
+  enabled: true
+  level: DEBUG
+  log_dir: logs
+  files:
+    debug: debug.log
+    info: info.log
+    error: error.log
+    critical: critical.log
+
+log_rotation:
+  enabled: true
+  max_bytes: 5242880
+  min_days: 3
+  backup_count: 10
+  daily: true
+  rotate_time: "00:00"
+  compress: gz
+
+mod_checking_enabled: true
+mod_check_mode: async  # Options: async, threaded, serial
+
+threaded_mode:
+  max_workers: 10
+
+steam:
+  api_key: ""  # Optional: used if you want authenticated requests
+
+discord:
+  enabled: true

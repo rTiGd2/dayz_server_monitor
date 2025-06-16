@@ -1,0 +1,48 @@
+# DayZ Server Monitor Configuration
+
+server:
+  ip: "127.0.0.1"
+  port: 2302
+
+reboot:
+  base_time: "01:00"
+  interval_minutes: 180
+
+locale: "en_GB"
+
+logging:
+  enabled: true
+  level: DEBUG
+  log_dir: logs
+  files:
+    debug: debug.log
+    info: info.log
+    error: error.log
+    critical: critical.log
+
+log_rotation:
+  enabled: true
+  max_bytes: 10485760
+  min_days: 1
+  backup_count: 5
+  daily: true
+  rotate_time: "04:00"
+  compress: bz2
+
+output:
+  to_console: true
+  to_file: true
+  to_discord: true
+  file_path: output/last_run.txt
+  show_removed_mods: true
+  silent_on_no_changes: false
+  show_island: true
+  show_platform: true
+  show_dedicated: true
+  show_mod_count: true
+  show_next_reboot: true
+
+discord:
+  webhook_url: https://discord.com/api/webhooks/<some really stupidly long hash>
+
+server_name: "My Server"
