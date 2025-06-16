@@ -5,13 +5,13 @@
 # Author: Tig Campbell-Moore (firstname[at]lastname[dot]com)
 # License: CC BY-NC 4.0 (see LICENSE file)
 
-import os
+from pathlib import Path
 import logging
 
 class TemplateLoader:
     def __init__(self, locale, base_path="locales"):
         self.locale = locale
-        self.base_path = base_path
+        self.base_path = Path(base_path)
         self.template_cache = {}
 
     def load_template(self, category, template_file):
@@ -19,13 +19,13 @@ class TemplateLoader:
         if key in self.template_cache:
             return self.template_cache[key]
 
-        template_path = os.path.join(self.base_path, self.locale, category, template_file)
-        if not os.path.exists(template_path):
+        template_path = self.base_path / self.locale / category / template_file
+        if not template_path.exists():
             logging.warning(f"[TemplateLoader] Missing template file: {template_path}")
             return f"[[ MISSING TEMPLATE: {category}/{template_file} ]]"
 
         try:
-            with open(template_path, "r", encoding="utf-8") as f:
+            with template_path.open("r", encoding="utf-8") as f:
                 content = f.read().strip()
                 self.template_cache[key] = content
                 return content

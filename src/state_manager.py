@@ -6,25 +6,25 @@
 # License: CC BY-NC 4.0 (see LICENSE file)
 
 import json
-import os
 import logging
 import shutil
+from pathlib import Path
 
-STATE_FILE = "data/previous_run.json"
+STATE_FILE = Path("data/previous_run.json")
 
 def load_state():
-    if not os.path.exists(STATE_FILE):
+    if not STATE_FILE.exists():
         logging.info("No previous state file found.")
         return {}
-    with open(STATE_FILE, 'r') as f:
+    with STATE_FILE.open('r') as f:
         state = json.load(f)
         logging.debug(f"Loaded previous state with {len(state)} mods.")
         return state
 
 def save_state(state):
-    os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
-    if os.path.exists(STATE_FILE):
-        shutil.copy(STATE_FILE, STATE_FILE + ".bak")
-    with open(STATE_FILE, 'w') as f:
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    if STATE_FILE.exists():
+        shutil.copy(STATE_FILE, str(STATE_FILE) + ".bak")
+    with STATE_FILE.open('w') as f:
         json.dump(state, f, indent=4)
     logging.debug(f"Saved state with {len(state)} mods.")

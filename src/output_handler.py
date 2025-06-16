@@ -6,7 +6,7 @@
 # License: CC BY-NC 4.0 (see LICENSE file)
 
 import logging
-import os
+from pathlib import Path
 
 output_messages = []
 
@@ -17,10 +17,10 @@ def send_output(config, message):
     output_messages.append(message)
 
     if config['output'].get("to_file", True):
-        file_path = config['output'].get("file_path", "output/last_run.txt")
+        file_path = Path(config['output'].get("file_path", "output/last_run.txt"))
         try:
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            with open(file_path, "a", encoding="utf-8") as f:
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            with file_path.open("a", encoding="utf-8") as f:
                 f.write(message + "\n")
         except Exception as e:
             logging.error(f"Failed to write to output file: {e}")
