@@ -6,7 +6,7 @@
 # License: CC BY-NC 4.0 (see LICENSE file)
 
 import logging
-import os
+from pathlib import Path
 from logging.handlers import RotatingFileHandler
 
 class LevelFilter(logging.Filter):
@@ -20,7 +20,7 @@ def setup_logging(config):
         return
 
     log_config = config["logging"]
-    log_dir = log_config.get("log_dir", "logs")
+    log_dir = Path(log_config.get("log_dir", "logs"))
     log_level = getattr(logging, log_config.get("level", "DEBUG").upper(), logging.DEBUG)
     log_files = log_config.get("files", {
         "debug": "debug.log",
@@ -29,7 +29,7 @@ def setup_logging(config):
         "critical": "critical.log"
     })
 
-    os.makedirs(log_dir, exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True)
 
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
@@ -48,7 +48,7 @@ def setup_logging(config):
         level = getattr(logging, level_name.upper(), None)
         if level is None:
             continue
-        filepath = os.path.join(log_dir, filename)
+        filepath = log_dir / filename
         handler = RotatingFileHandler(filepath, maxBytes=5_000_000, backupCount=3)
         handler.setLevel(level)
         handler.setFormatter(formatter)

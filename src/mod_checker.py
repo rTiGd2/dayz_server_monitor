@@ -12,10 +12,10 @@
 
 import logging
 import time
-import os
 import json
 import re
 from datetime import datetime, timedelta
+from pathlib import Path
 from src import server_query
 from src import output_handler
 from src.templates import TemplateLoader
@@ -33,7 +33,7 @@ from src.server_monitor_tracker import (
     load_mod_tracking,
 )
 
-PERF_LOG_FILE = "data/performance/performance_log.json"
+PERF_LOG_FILE = Path("data/performance/performance_log.json")
 
 def get_mod_attr(mod, key, default=None):
     if isinstance(mod, dict):
@@ -408,33 +408,33 @@ def build_summary_with_mods(config, templates, mod_messages, server_info, mods, 
 
 def log_performance(duration):
     """Append performance log entry for this run."""
-    os.makedirs(os.path.dirname(PERF_LOG_FILE), exist_ok=True)
+    PERF_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     perf_entry = {
         "timestamp": datetime.now().isoformat(),
         "duration_seconds": round(duration, 2)
     }
-    if os.path.exists(PERF_LOG_FILE):
-        with open(PERF_LOG_FILE, "r") as f:
-            try:
+    if PERF_LOG_FILE.exists():
+        try:
+            with PERF_LOG_FILE.open("r") as f:
                 records = json.load(f)
-            except Exception:
-                records = []
+        except Exception:
+            records = []
     else:
         records = []
     records.append(perf_entry)
-    with open(PERF_LOG_FILE, "w") as f:
+    with PERF_LOG_FILE.open("w") as f:
         json.dump(records, f, indent=2)
 
 def summarize_performance(last_N=20):
     """Summarize recent performance logs and log average run time."""
-    if not os.path.exists(PERF_LOG_FILE):
+    if not PERF_LOG_FILE.exists():
         return
-    with open(PERF_LOG_FILE, "r") as f:
-        try:
+    try:
+        with PERF_LOG_FILE.open("r") as f:
             records = json.load(f)
-        except Exception:
-            logging.warning("Could not read performance log.")
-            return
+    except Exception:
+        logging.warning("Could not read performance log.")
+        return
     recent = records[-last_N:] if len(records) > last_N else records
     if not recent:
         return

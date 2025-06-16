@@ -1,257 +1,141 @@
+# DayZ Server Monitor
 
-# DayZ Server Mod Monitor
+Monitor, track, and report on DayZ servers—with advanced config, changelog reporting, multi-server support, and persistent tracking.
 
-## WARNINGS/ISSUES
+---
 
-This is currently out of date, most of the information is correct but know the following
+## Features
 
-Discord integration has switched from BOT to Webhook (makes more sense) amd the example config.yaml in the project reflects this but this file does not.
+- **Multi-server support:** Run checks and reporting on multiple DayZ servers with a single tool.
+- **Configuration merging:** Supports defaults, per-server overrides, and required fields using YAML and Pydantic validation.
+- **Change tracking:** Persists mod state and server performance to disk for reliable change detection.
+- **Changelog fetching:** Reports mod changelogs (with formatting, truncation, BBCode/HTML stripping, etc).
+- **Flexible output:** Console, file, and Discord notification support, with robust template-based formatting and locale support.
+- **Robust logging:** Rotating file logs, colored console logs, per-level file splitting, and configurable verbosity.
+- **Performance logging:** Tracks and summarizes run duration and stats per server.
+- **Localization:** Localized output via customizable templates.
 
-Docker is a work in progress, with little progress. It still uses the old Discord bot method, so either fix this (and feel free to contribute) or wait for my lazy ass to get around to it
+---
 
-## 🎯 Overview
+## Quick Start
 
-A robust, extensible system to monitor DayZ server mods, detect changes, and notify administrators via logs and Discord.
+### 1. Install requirements
 
-----------
+Python 3.8+ is required.
 
-## 🚀 Key Features
+```sh
+pip install -r requirements.txt
+```
 
--   ✅ Queries live DayZ server (via  dayzquery)
--   ✅ Detects mod additions, removals, and updates
--   ✅ Pulls Steam Workshop metadata and changelogs
--   ✅ Sends summary messages to Discord (optional)
--   ✅ Full i18n localization support (template-driven)
--   ✅ Supports async, threaded, or serial concurrency
--   ✅ Detailed logging (with rotation & per-level files)
--   ✅ State tracking across runs
--   ✅ CLI and Docker support
--   ✅ Unit-tested and extensible
+### 2. Configure servers
 
-----------
+Edit YAML files in the `config/` directory:
 
-## 🗂 Project Structure
+- `monitor.yaml` — Top-level/global config (required)
+- `config.defaults.yaml` — Default values applied to all servers (optional)
+- `config.required.yaml` — Required fields with metadata (optional)
+- `*.yaml` — One file per server, overrides global/defaults
 
-DayZ_Server_Monitor/
-├── monitor.py
-├── cli.py
-├── config_loader.py
-├── logger.py
-├── mod_checker.py
-├── output_handler.py
-├── server_query.py
-├── state_manager.py
-├── steam_api.py
-├── templates.py
-├── discord_notifier.py
-├── changelog_fetcher.py
-│
-├── modes/
-│ ├── serial_mode.py
-│ ├── threaded_mode.py
-│ └── async_mode.py
-│
-├── locales/
-│ └── en_GB/
-│ ├── output/
-│ ├── logging/
-│ └── discord/
-│
-├── tests/
-├── output/
-├── logs/
+### 3. Run the monitor
+
+```sh
+python -m src.monitor
+```
+
+---
+
+## Directory Structure
+
+```
+dayz_server_monitor/
+├── config/                 # All config YAMLs (see above)
 ├── data/
-│
-├── docker/
-│ ├── Dockerfile.oneoff
-│ ├── Dockerfile.cron
-│ ├── entrypoint.sh
-│ ├── crontab.template
-│ └── secrets/
-│ ├── discord_webhook_url
-│ └── steam_api_key
-│
-├── config.yaml
+│   ├── performance/        # Performance logs per server
+│   ├── tracking/           # Mod tracking state per server
+│   └── previous_run.json   # Legacy state file
+├── locales/                # Localized message templates
+├── src/
+│   ├── config_loader.py    # Config loading/validation/merging
+│   ├── logger.py           # Logging setup
+│   ├── mod_checker.py      # Main mod check logic
+│   ├── output_handler.py   # Output to console/file/Discord
+│   ├── server_monitor_tracker.py  # State/persistence utils
+│   ├── state_manager.py    # Legacy state save/load
+│   ├── templates.py        # TemplateLoader for localization
+│   └── monitor.py          # Entrypoint
+│   ⋮
 ├── requirements.txt
-├── LICENSE
 └── README.md
+```
 
-----------
+---
 
-## ⚙️ Configuration
+## Configuration
 
-Edit config.yaml:
+All configuration is placed in the `config/` directory.
 
-    server:
-       ip:  "your.server.ip"
-       port:  2302
-    reboot:
-       base_time:  "00:00"
-       interval_minutes:  240
-    locale:  "en_GB"
-    logging:
-       enabled:  true
-       level: DEBUG
-       log_dir: logs
-       files:
-          debug: debug.log
-          info: info.log
-          error: error.log
-          critical: critical.log
-    output:
-       to_console:  true
-       to_file:  true
-       to_discord:  true
-       file_path:  "output/last_run.txt"
-       show_removed_mods:  true
-       silent_on_no_changes:  false
-       show_island:  true
-       show_platform:  true
-       show_dedicated:  true
-       show_mod_count:  true
-       show_next_reboot:  true
-    mod_checking_enabled:  true
-    mod_check_mode: async # Options: async, threaded, serial
-    threaded_mode:
-       max_workers:  10
-    steam:
-       api_key:  "your_steam_api_key"
-    discord:
-       enabled:  true
-       webhook_url: https://discord.com/api/webhooks/<some really stupidly long hash>`
+- **Defaults:** `config.defaults.yaml` (optional)
+- **Global/Monitor:** `monitor.yaml` (required for global/serverless mode)
+- **Per-server:** `*.yaml` (one per server)
+- **Required fields:** `config.required.yaml` (optional, for validation)
 
-----------
+Each server config merges: `defaults` ← `monitor.yaml` ← `per-server.yaml`.
 
-## 🔐 Secrets, Environment, and Config Resolution
+**Validation:** Uses Pydantic models and required metadata; errors are logged and faulty configs are skipped.
 
-This project supports multiple methods for passing sensitive data such as:
+---
 
--   STEAM_API_KEY
--   DISCORD_WEBHOOK_URL
+## Output Options
 
-They are resolved in the following priority:
+- **Console:** Prints summary and changelogs (configurable).
+- **File:** Appends output to `output/last_run.txt` (or custom path).
+- **Discord:** Dispatches via webhook (requires config).
 
-Docker Secret > config.yaml > Environment Variable
+Customize output via the `output` section in your config YAMLs.
 
-----------
+---
 
-## 📁 Docker Secrets Setup
+## Logging
 
-For sensitive values, mount secret files to /run/secrets/:
+- Configurable logging setup (console, file, per-level splitting, rotating logs).
+- Logs are stored in `logs/` by default.
+- Adjust log level and files in your config's `logging` section.
 
-    echo  "your-discord-webhook-url"  > discord_webhook_url
-    echo  "your-steam-api-key"  > steam_api_key
-    docker run -d \\
-      --secret source=discord_webhook_urln,target=discord_webhook_url \\
-      --secret source=steam_api_key,target=steam_api_key \\
-      dayz_monitor_cron
+---
 
-Or with Docker Compose:
+## Templates & Localization
 
-    services:
-       dayzmonitor:
-          image: dayz_monitor_cron
-          secrets:
-             - discord_webhook_url
-             - steam_api_key
-            environment:
-               - CRON_SCHEDULE=*/10 * * * *
+- Templates live in `locales/<locale>/<category>/<file>.txt`
+- Select locale via the `locale` config field.
+- Use `{placeholder}` syntax in templates for variables.
 
-    secrets:
-       discord_token:
-          file: ./docker/secrets/discord_webhook_url
-       steam_api_key:
-          file: ./docker/secrets/steam_api_key
+---
 
-----------
+## Development & Contribution
 
-## 🌍 Environment Variables
+- **Python best practices:** Uses `pathlib` everywhere for filesystem access.
+- **Exception handling:** Catches and logs specific exceptions where possible.
+- **Type safety:** Pydantic models for config validation.
+- **Extendability:** Modular codebase, easy to add new output or processing modes.
 
-You can also provide these if secrets are not used:
+### To contribute
 
-    export  DISCORD_WEBHOOK_URL="your-discord-webhook_url"
-    export  STEAM_API_KEY="your-steam-api-key"
-    python monitor.py
+1. Fork and branch.
+2. Make PRs with clear description and context.
+3. Add/adjust templates and config samples as needed.
 
-----------
+---
 
-## 🧪 Testing
+## License
 
-Run all unit tests:
+CC BY-NC 4.0
+See [LICENSE](LICENSE) for details.
 
-    python -m unittest discover tests
+---
 
-Simulated test cases include:
+## Credits
 
--   ✅ Server unreachable (via port override)
--   ✅ Mod update detection
--   ✅ Output generation
--   ✅ Template integrity
+- **Author:** Tig Campbell-Moore (firstname[at]lastname[dot]com)
+- Community contributors: see GitHub contributors list.
 
-----------
-
-## 🖥 Supported Modes
-
-|Mode  | Config Value | Notes
-|--|--|--|
-|Serial  | serial |Slow but simple |
-|Threaded |threaded | Fast, CPU-friendly|
-|Async |async |Fastest, scalable |
-
-----------
-
-## 🤖 Discord Integration
-
-1. Go to your Discord server and navigate to the channel you want messages posted in.
-2. Click the gear icon (Edit Channel) next to the channel name.
-3. Go to Integrations → Webhooks → New Webhook.
-4. Name the webhook (e.g., "DayZ Monitor") and select the channel.
-5. Copy the Webhook URL (it will look like https://discord.com/api/webhooks/XXXXXXXXX/YYYYYYYYYYYYYYYYY)
-
-----------
-
-## 🐳 Docker Support
-
-### One-Time Run
-
-    docker build -f docker/Dockerfile.oneoff -t dayz_monitor .
-    docker run --rm -v $PWD:/app dayz_monitor
-
-### Cron-Enabled Image
-
-This version includes a flexible schedule.
-
-    docker build -f docker/Dockerfile.cron -t dayz_monitor_cron .
-    docker run -d -e CRON_SCHEDULE="*/10 * * * *" dayz_monitor_cron
-
-**Default:** */5 * * * * (every 5 minutes)
-
--   ✅ Only the frequency is user-configurable
--   ✅ The monitored command cannot be changed
--   ✅ Environment variable  CRON_SCHEDULE  is injected into a crontab template
-
-----------
-
-## 📝 Performance Logging
-
-Performance logs written to data/performance_log.csv. Summary displayed after each run:
-
-Mod check completed in 3.27 seconds using mode 'async'
-Recent Performance Summary (last 20 runs):
-Mode: serial | Avg: 25.38 sec
-Mode: threaded | Avg: 7.92 sec
-Mode: async | Avg: 3.27 sec
-
-----------
-
-## 📄 License
-
-Licensed under **Creative Commons BY-NC 4.0**
-Commercial use requires written permission.
-
-More info: [https://creativecommons.org/licenses/by-nc/4.0/](https://creativecommons.org/licenses/by-nc/4.0/ "https://creativecommons.org/licenses/by-nc/4.0/")
-
-**Author:** Tig Campbell-Moore
-**Contact:** firstname[at]lastname[dot]com
-
-----------
+---

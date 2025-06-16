@@ -6,21 +6,20 @@
 # Author: Tig Campbell-Moore (firstname[at]lastname[dot]com)
 # License: CC BY-NC 4.0 (see LICENSE file)
 
-import os
+from pathlib import Path
 import yaml
-from glob import glob
 from copy import deepcopy
 from typing import Any, Dict, List, Tuple
 from src.config_models import DayZServerMonitorConfig
 from pydantic import ValidationError
 
-def load_yaml(path: str) -> Dict[str, Any]:
+def load_yaml(path: Path) -> Dict[str, Any]:
     """
     Load YAML file, return empty dict if not found or empty.
     """
-    if not os.path.exists(path):
+    if not path.exists():
         return {}
-    with open(path, 'r', encoding='utf-8') as f:
+    with path.open('r', encoding='utf-8') as f:
         return yaml.safe_load(f) or {}
 
 def get_nested(config: Dict[str, Any], dotted_key: str) -> Any:
@@ -84,21 +83,22 @@ def load_configs(config_dir: str = "config") -> Tuple[List[Dict[str, Any]], Dict
     Each validated_pydantic_config is an instance of DayZServerMonitorConfig.
     If a config fails validation, it is skipped and error is printed.
     """
-    defaults: Dict[str, Any] = load_yaml(os.path.join(config_dir, "config.defaults.yaml"))
-    required_yaml: Dict[str, Any] = load_yaml(os.path.join(config_dir, "config.required.yaml"))
+    config_dir_path = Path(config_dir)
+    defaults: Dict[str, Any] = load_yaml(config_dir_path / "config.defaults.yaml")
+    required_yaml: Dict[str, Any] = load_yaml(config_dir_path / "config.required.yaml")
     required: Dict[str, Any] = load_required_with_metadata(required_yaml)
-    monitor: Dict[str, Any] = load_yaml(os.path.join(config_dir, "monitor.yaml"))
-    yamls = sorted(glob(os.path.join(config_dir, "*.yaml")))
+    monitor: Dict[str, Any] = load_yaml(config_dir_path / "monitor.yaml")
+    yamls = sorted(config_dir_path.glob("*.yaml"))
     server_configs: List[Dict[str, Any]] = []
 
     monitor_server = monitor.get("server", {})
 
     for ypath in yamls:
-        fname = os.path.basename(ypath)
+        fname = ypath.name
         if fname in ("monitor.yaml", "config.defaults.yaml", "config.required.yaml"):
             continue
         server: Dict[str, Any] = load_yaml(ypath)
-        merged: Dict[str, Any] = {}  # Only type annotate here
+        merged: Dict[str, Any] = {}
         merge_dicts(merged, deepcopy(defaults))
         merge_dicts(merged, deepcopy(monitor))
         merge_dicts(merged, server)
@@ -109,7 +109,7 @@ def load_configs(config_dir: str = "config") -> Tuple[List[Dict[str, Any]], Dict
 
     # Fallback: single-server mode (monitor.yaml only)
     if not server_configs and monitor:
-        merged = {}  # Do NOT type annotate here, since already done above
+        merged = {}
         merge_dicts(merged, deepcopy(defaults))
         merge_dicts(merged, deepcopy(monitor))
         merged['server'] = merge_server_blocks(monitor, monitor)

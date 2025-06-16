@@ -7,7 +7,7 @@
 # License: CC BY-NC 4.0 (see LICENSE file)
 
 import logging
-import os
+from pathlib import Path
 import shutil
 import gzip
 import bz2
@@ -48,40 +48,42 @@ def compress_file(src, method):
     Compress the log file using the specified method.
     Supports 'gz', 'bz2', 'zip', or returns the original if method is None/unknown.
     """
+    src_path = Path(src)
     if method == "gz":
-        with open(src, "rb") as f_in, gzip.open(src + ".gz", "wb") as f_out:
+        with src_path.open("rb") as f_in, gzip.open(str(src_path) + ".gz", "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
-        os.remove(src)
-        return src + ".gz"
+        src_path.unlink()
+        return str(src_path) + ".gz"
     elif method == "bz2":
-        with open(src, "rb") as f_in, bz2.open(src + ".bz2", "wb") as f_out:
+        with src_path.open("rb") as f_in, bz2.open(str(src_path) + ".bz2", "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
-        os.remove(src)
-        return src + ".bz2"
+        src_path.unlink()
+        return str(src_path) + ".bz2"
     elif method == "zip":
-        zip_path = src + ".zip"
+        zip_path = src_path.with_suffix(src_path.suffix + ".zip")
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-            zf.write(src, arcname=os.path.basename(src))
-        os.remove(src)
-        return zip_path
-    return src
+            zf.write(str(src_path), arcname=src_path.name)
+        src_path.unlink()
+        return str(zip_path)
+    return str(src_path)
 
 def get_rotate_state_path(logfile):
     """
     Get the path for the file storing last rotation information.
     """
-    basename = os.path.splitext(os.path.basename(logfile))[0]
-    dirname = os.path.dirname(logfile)
-    return os.path.join(dirname, ROTATE_STATE_FMT.format(basename=basename))
+    logfile_path = Path(logfile)
+    basename = logfile_path.stem
+    dirname = logfile_path.parent
+    return dirname / ROTATE_STATE_FMT.format(basename=basename)
 
 def load_last_rotate(logfile):
     """
     Load the last rotation datetime from the rotation state file, if present.
     """
     statefile = get_rotate_state_path(logfile)
-    if os.path.exists(statefile):
+    if statefile.exists():
         try:
-            with open(statefile, "r") as f:
+            with statefile.open("r") as f:
                 d = yaml.safe_load(f)
                 if d and 'last_rotate' in d:
                     return datetime.fromisoformat(d['last_rotate'])
@@ -94,7 +96,7 @@ def save_last_rotate(logfile, dt):
     Save the given datetime as the last rotation time for the logfile.
     """
     statefile = get_rotate_state_path(logfile)
-    with open(statefile, "w") as f:
+    with statefile.open("w") as f:
         yaml.safe_dump({"last_rotate": dt.isoformat()}, f)
 
 def should_rotate_daily(config, logfile):
@@ -102,7 +104,8 @@ def should_rotate_daily(config, logfile):
     Determine if the log should be rotated due to daily schedule.
     Do not rotate if the file is empty.
     """
-    if not os.path.exists(logfile) or os.path.getsize(logfile) == 0:
+    logfile_path = Path(logfile)
+    if not logfile_path.exists() or logfile_path.stat().st_size == 0:
         return False
     rotate_time = config.get("log_rotation", {}).get("rotate_time", "00:00")
     rotate_hour, rotate_minute = map(int, rotate_time.split(":"))
@@ -122,28 +125,30 @@ def should_rotate_size(config, logfile):
     Only rotate if the log file exists and is not empty.
     """
     max_bytes_raw = config.get("log_rotation", {}).get("max_bytes")
-    if not max_bytes_raw or not os.path.exists(logfile):
+    logfile_path = Path(logfile)
+    if not max_bytes_raw or not logfile_path.exists():
         return False
-    if os.path.getsize(logfile) == 0:
+    if logfile_path.stat().st_size == 0:
         # Don't rotate empty files
         return False
     max_bytes = parse_size(max_bytes_raw)
-    size = os.path.getsize(logfile)
+    size = logfile_path.stat().st_size
     return size >= max_bytes
 
 def list_rotated_logs(logfile, compression_methods):
     """
     List all rotated logs, including compressed ones, for pruning.
     """
-    dirname = os.path.dirname(logfile)
-    basename = os.path.basename(logfile)
-    name, ext = os.path.splitext(basename)
+    logfile_path = Path(logfile)
+    dirname = logfile_path.parent
+    basename = logfile_path.name
+    name = logfile_path.stem
     rotated = []
-    for fname in os.listdir(dirname):
-        if fname.startswith(name) and fname != basename:
-            if fname.endswith(".log") or any(fname.endswith("." + c) for c in compression_methods):
-                rotated.append(os.path.join(dirname, fname))
-    rotated.sort(key=os.path.getctime)
+    for fname in dirname.iterdir():
+        if fname.name.startswith(name) and fname.name != basename:
+            if fname.name.endswith(".log") or any(fname.name.endswith("." + c) for c in compression_methods):
+                rotated.append(fname)
+    rotated.sort(key=lambda f: f.stat().st_ctime)
     return rotated
 
 def prune_rotated_logs(logfile, config):
@@ -158,7 +163,7 @@ def prune_rotated_logs(logfile, config):
     now = datetime.now()
     keep = []
     for lf in rotated:
-        ctime = datetime.fromtimestamp(os.path.getctime(lf))
+        ctime = datetime.fromtimestamp(lf.stat().st_ctime)
         age_days = (now - ctime).days
         if age_days < min_days:
             keep.append(lf)
@@ -166,10 +171,10 @@ def prune_rotated_logs(logfile, config):
             keep.append(lf)
     extra = len(keep) - backup_count
     if extra > 0:
-        candidates = [f for f in keep if (now - datetime.fromtimestamp(os.path.getctime(f))).days >= min_days]
-        for f in sorted(candidates, key=os.path.getctime)[:extra]:
+        candidates = [f for f in keep if (now - datetime.fromtimestamp(f.stat().st_ctime)).days >= min_days]
+        for f in sorted(candidates, key=lambda f: f.stat().st_ctime)[:extra]:
             try:
-                os.remove(f)
+                f.unlink()
             except Exception:
                 pass
 
@@ -182,12 +187,12 @@ class AdvancedLogger:
         self.config = config
         self.logtype = logtype
         self.enabled = config.get("log_rotation", {}).get("enabled", True)
-        self.log_dir = config.get("log_dir", "logs")
-        os.makedirs(self.log_dir, exist_ok=True)
+        self.log_dir = Path(config.get("log_dir", "logs"))
+        self.log_dir.mkdir(parents=True, exist_ok=True)
         config_file = config.get("_config_file", "monitor.yaml").replace(".yaml", "")
         self.config_file = config_file
         self.date_str = datetime.now().strftime("%Y-%m-%d")
-        self.logfile = os.path.join(self.log_dir, f"{config_file}.{logtype}.{self.date_str}.log")
+        self.logfile = self.log_dir / f"{config_file}.{logtype}.{self.date_str}.log"
         self._logger = None
         self.setup_logger()
 
@@ -220,7 +225,8 @@ class AdvancedLogger:
             return
 
         # Only rotate if file exists and is not empty
-        if not os.path.exists(self.logfile) or os.path.getsize(self.logfile) == 0:
+        logfile_path = Path(self.logfile)
+        if not logfile_path.exists() or logfile_path.stat().st_size == 0:
             return
 
         if should_rotate_size(self.config, self.logfile):
@@ -233,11 +239,12 @@ class AdvancedLogger:
         if rotated:
             now = datetime.now()
             rotate_suffix = now.strftime("%Y-%m-%d_%H%M%S")
-            rotated_log = self.logfile.replace(".log", f".{rotate_suffix}.log")
+            rotated_log = logfile_path.with_name(logfile_path.name.replace(".log", f".{rotate_suffix}.log"))
             self._logger.handlers[0].close()
-            os.rename(self.logfile, rotated_log)
+            logfile_path.rename(rotated_log)
+            rotated_log_path = rotated_log
             if compress_method in ("gz", "bz2", "zip"):
-                rotated_log = compress_file(rotated_log, compress_method)
+                rotated_log_path = Path(compress_file(str(rotated_log), compress_method))
             save_last_rotate(self.logfile, now)
             self.setup_logger()
             prune_rotated_logs(self.logfile, self.config)
