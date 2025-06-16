@@ -25,7 +25,6 @@ data/
 *.log
 
 # Build artifacts and Docker itself
-docker/
 docker-compose.yml
 Dockerfile
 .dockerignore

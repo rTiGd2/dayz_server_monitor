@@ -2,7 +2,7 @@
 
 echo "🔧 Configuring cron schedule..."
 
-CRON_SCHEDULE="${CRON_SCHEDULE:-*/5 * * * *}"
+export CRON_SCHEDULE="${CRON_SCHEDULE:-*/5 * * * *}"
 
 # Inject schedule into template
 envsubst < /etc/cron.d/template > /etc/cron.d/dayzmonitor
