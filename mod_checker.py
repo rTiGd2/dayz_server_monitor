@@ -1,18 +1,30 @@
 # DayZ Server Monitor
 # File: mod_checker.py
-# Prevents Discord embeds/previews by never emitting bare URLs and uses correct changelog URLs.
-# Uses zero-width space in URLs for extra Discord safety.
+#
+# Mod check and reporting logic for DayZ Server Monitor.
+# Supports serial, threaded, and async processing models.
+# Reports changelogs for added/updated mods if configured, with truncation.
+# NEVER outputs links to Discord, file, or console.
+# Cleans changelog: removes unsupported BBCode, stray tags, blank/formatting lines, links, and images.
+#
+# (C) Tig Campbell-Moore, rTiGd2/dayz_server_monitor contributors
+# License: CC BY-NC 4.0
 
 import logging
 import time
 import os
 import json
+import re
 from datetime import datetime, timedelta
 import server_query
 import output_handler
 from templates import TemplateLoader
 import discord_notifier
 import steam_api
+
+import modes.serial_mode as serial_mode
+import modes.threaded_mode as threaded_mode
+import modes.async_mode as async_mode
 
 from server_monitor_tracker import (
     update_performance,
@@ -22,10 +34,6 @@ from server_monitor_tracker import (
 )
 
 PERF_LOG_FILE = "data/performance/performance_log.json"
-
-def break_embed(url: str) -> str:
-    """Insert a zero-width space after protocol to prevent Discord preview."""
-    return url.replace("://", "://\u200B")
 
 def get_mod_attr(mod, key, default=None):
     if isinstance(mod, dict):
@@ -46,24 +54,60 @@ def get_mod_workshop_id(mod):
     return str(wid) if wid is not None else None
 
 def get_mod_changelog(mod):
-    return get_mod_attr(mod, "changelog", "")
+    # Try common changelog keys
+    for key in ("changelog", "description", "change_log", "log", "notes"):
+        if isinstance(mod, dict) and key in mod:
+            return mod[key]
+        elif hasattr(mod, key):
+            return getattr(mod, key)
+    return ""
 
-def get_mod_workshop_url(mod):
-    wid = get_mod_workshop_id(mod)
-    if wid:
-        return f"https://steamcommunity.com/sharedfiles/filedetails/?id={wid}"
-    return None
+def bbcode_to_discord(text):
+    """Convert common BBCode to Discord markdown. Strip all other BBCode tags, links, images, and blank lines."""
+    if not text:
+        return ""
+    # Remove [img], [image], [url] tags and their content
+    text = re.sub(r'\[img\](.*?)\[/img\]', '', text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'\[image\](.*?)\[/image\]', '', text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'\[url(=[^\]]*)?\](.*?)\[/url\]', '', text, flags=re.DOTALL | re.IGNORECASE)
+    # Remove HTML links and images
+    text = re.sub(r'<a\b[^>]*>(.*?)</a>', '', text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'<img\b[^>]*>', '', text, flags=re.DOTALL | re.IGNORECASE)
+    # Convert supported tags to Discord markdown
+    text = re.sub(r'\[b\](.*?)\[/b\]', r'**\1**', text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'\[u\](.*?)\[/u\]', r'__\1__', text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'\[i\](.*?)\[/i\]', r'*\1*', text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'\[s\](.*?)\[/s\]', r'~~\1~~', text, flags=re.DOTALL | re.IGNORECASE)
+    # Remove unsupported url/color/list/quote/etc tags
+    text = re.sub(r'\[/?(url|color|list|quote|h[1-6]|img|image|spoiler|code|center|size|font|video|audio|flash|table|tr|td|th|hr|li|ol|ul|br|yt|youtube|media|left|right|justify|indent|outdent|sup|sub)(=[^\]]*)?\]', '', text, flags=re.DOTALL | re.IGNORECASE)
+    # Remove HTML tags
+    text = re.sub(r'<[^>]+>', '', text)
+    # Remove any other [tag] or [/tag]
+    text = re.sub(r'\[/?[a-zA-Z0-9]+(=[^\]]*)?\]', '', text)
+    # Remove lines containing only whitespace or only formatting (e.g. after stripping tags)
+    lines = [l for l in text.splitlines() if l.strip() and not re.match(r'^[\*\_\~]+$', l.strip())]
+    return "\n".join(lines)
 
-def get_mod_changelog_url(wid):
-    if wid:
-        return f"https://steamcommunity.com/sharedfiles/filedetails/changelog/{wid}"
-    return None
+def format_changelog_with_modname(changelog, mod_name):
+    if not changelog or not mod_name:
+        return bbcode_to_discord(changelog or "")
+    plain_mod_name = re.sub(r'\[/?[a-z]+(=[^\]]*)?\]', '', mod_name, flags=re.IGNORECASE)
+    decorated_name = f"__**{plain_mod_name}**__"
+    changelog_strip = changelog.lstrip()
+    modname_regex = r"^(\[b\]|\[u\])*" + re.escape(plain_mod_name) + r"(\[/u\]|\[/b\])*"
+    match = re.match(modname_regex, changelog_strip, flags=re.IGNORECASE)
+    if match:
+        end = match.end()
+        rest = changelog_strip[end:].lstrip(": \n")
+        rest_formatted = bbcode_to_discord(rest)
+        return f"{decorated_name} {rest_formatted}"
+    else:
+        return bbcode_to_discord(changelog)
 
 def run_mod_check(config, templates=None):
     mods_cfg = config.get("mods", {})
     show_mod_changelog = mods_cfg.get("show_mod_changelog", True)
     max_changelog_lines = mods_cfg.get("max_changelog_lines", 10)
-    show_mod_links = mods_cfg.get("show_mod_links", True)
     mod_checking_enabled = mods_cfg.get("mod_checking_enabled", True)
     mod_check_mode = mods_cfg.get("mod_check_mode", "serial").lower()
     report_limit = mods_cfg.get("report_limit", 10)
@@ -105,7 +149,7 @@ def run_mod_check(config, templates=None):
         output_handler.output_messages.append(f"❌ Failed to query server: {e}")
         return [], {}
 
-    # Compute next reboot time once, for use in both outputs
+    # Compute next reboot time (used in summary)
     next_reboot = None
     if show_next_reboot and "reboot" in config:
         base_hour, base_minute = map(int, config['reboot']['base_time'].split(":"))
@@ -120,31 +164,37 @@ def run_mod_check(config, templates=None):
         else:
             next_reboot = base + timedelta(days=1)
 
+    # === Parallel processing model selection ===
+    logging.info(f"[mod_checker] Using mod_check_mode: {mod_check_mode}")
+    if mod_check_mode == "serial":
+        mod_results = serial_mode.run(config, info, mods)
+    elif mod_check_mode == "threaded":
+        mod_results = threaded_mode.run(config, info, mods)
+    elif mod_check_mode == "async":
+        mod_results = async_mode.run(config, info, mods)
+    else:
+        logging.warning(f"[mod_checker] Unknown mod_check_mode '{mod_check_mode}', defaulting to serial")
+        mod_results = serial_mode.run(config, info, mods)
+
+    # Build current_mods_dict from mod_results (no changelogs stored)
     current_mods_dict = {}
-    for mod in mods:
-        wid = get_mod_workshop_id(mod)
-        try:
-            steam_info = steam_api.get_mod_info(wid)
-        except Exception:
-            steam_info = {'title': get_mod_name(mod), 'time_updated': 0, 'description': ''}
-        mod_entry = {
-            "name": steam_info.get('title', get_mod_name(mod)),
+    for base_mod, mod_res in zip(mods, mod_results):
+        if not mod_res or not mod_res.get("workshop_id"):
+            continue
+        wid = str(mod_res["workshop_id"])
+        current_mods_dict[wid] = {
+            "name": mod_res.get("title", get_mod_name(mod_res)),
             "workshop_id": wid,
-            "time_updated": steam_info.get('time_updated', 0),
-            "changelog": steam_info.get('description', '') or get_mod_changelog(mod),
-            "workshop_url": get_mod_workshop_url(mod)
+            "time_updated": mod_res.get("time_updated", 0),
         }
-        current_mods_dict[wid] = mod_entry
 
     previous_mods_dict = load_mod_tracking(server_name)
     prev_wids = set(previous_mods_dict.keys())
     curr_wids = set(current_mods_dict.keys())
 
-    # Added/removed by workshop_id:
     added_mods = curr_wids - prev_wids
     removed_mods = prev_wids - curr_wids
 
-    # Updated: only those present in both, where update time increased
     updated_mods = []
     for wid in curr_wids & prev_wids:
         prev = previous_mods_dict[wid]
@@ -165,97 +215,82 @@ def run_mod_check(config, templates=None):
             "title": "",
             "local_time": "",
             "discord_time": "",
-            "workshop_url": None,
-            "discord_link_str": "",
             "changelog_text": "",
-            "changelog_url": None,
             "summary": f"{total_changes} mods updated/added, not reporting details in this post."
         }
         mod_messages = [msg]
         changes_detected = True
     else:
-        # Report all added mods
+        # Report all ADDED mods (with changelog lookup/output if enabled)
         for wid in added_mods:
             mod = current_mods_dict[wid]
             name = mod["name"]
             time_updated = mod.get("time_updated", 0)
             local_time = datetime.fromtimestamp(time_updated).strftime("%Y-%m-%d %H:%M:%S") if time_updated else ""
             discord_time = f"<t:{int(time_updated)}:F>" if time_updated else ""
-            workshop_url = mod.get("workshop_url")
-            changelog = mod.get("changelog", "")
-            changelog_url = get_mod_changelog_url(wid)
-
-            discord_link_str = ""
-            if show_mod_links and workshop_url:
-                safe_url = break_embed(workshop_url)
-                discord_link_str = f" [Workshop]({safe_url})"
-            elif workshop_url:
-                safe_url = break_embed(workshop_url)
-                discord_link_str = f" ([Workshop]({safe_url}))"
-
             changelog_text = ""
-            if show_mod_changelog and changelog:
-                changelog_lines = changelog.splitlines()
-                if len(changelog_lines) > max_changelog_lines:
-                    changelog_text = "\n".join(changelog_lines[:max_changelog_lines])
-                    changelog_text += "\n[...] (truncated)"
-                else:
-                    changelog_text = changelog
-
+            if show_mod_changelog:
+                # Lookup changelog live from Steam API
+                try:
+                    steam_info = steam_api.get_mod_info(wid)
+                    changelog = steam_info.get("description", "")
+                except Exception:
+                    changelog = ""
+                if changelog:
+                    changelog_lines = changelog.splitlines()
+                    # Remove blank lines after BBCode/HTML strip
+                    changelog_lines = [line for line in changelog_lines if line.strip()]
+                    if len(changelog_lines) > max_changelog_lines:
+                        changelog_text = "\n".join(changelog_lines[:max_changelog_lines])
+                        changelog_text += "\n[...] (truncated)"
+                    else:
+                        changelog_text = "\n".join(changelog_lines)
+                    changelog_text = format_changelog_with_modname(changelog_text, name)
             msg = {
                 "type": "new",
                 "title": name,
                 "local_time": local_time,
                 "discord_time": discord_time,
-                "workshop_url": workshop_url,
-                "discord_link_str": discord_link_str,
-                "changelog_text": changelog_text,
-                "changelog_url": changelog_url
+                "changelog_text": changelog_text
             }
             mod_messages.append(msg)
             changes_detected = True
 
-        # Report all updated mods
+        # Report all UPDATED mods (with changelog lookup/output if enabled)
         for wid in updated_mods:
             mod = current_mods_dict[wid]
             name = mod["name"]
             time_updated = mod.get("time_updated", 0)
             local_time = datetime.fromtimestamp(time_updated).strftime("%Y-%m-%d %H:%M:%S") if time_updated else ""
             discord_time = f"<t:{int(time_updated)}:F>" if time_updated else ""
-            workshop_url = mod.get("workshop_url")
-            changelog = mod.get("changelog", "")
-            changelog_url = get_mod_changelog_url(wid)
-
-            discord_link_str = ""
-            if show_mod_links and workshop_url:
-                safe_url = break_embed(workshop_url)
-                discord_link_str = f" [Workshop]({safe_url})"
-            elif workshop_url:
-                safe_url = break_embed(workshop_url)
-                discord_link_str = f" ([Workshop]({safe_url}))"
-
             changelog_text = ""
-            if show_mod_changelog and changelog:
-                changelog_lines = changelog.splitlines()
-                if len(changelog_lines) > max_changelog_lines:
-                    changelog_text = "\n".join(changelog_lines[:max_changelog_lines])
-                    changelog_text += "\n[...] (truncated)"
-                else:
-                    changelog_text = changelog
-
+            if show_mod_changelog:
+                # Lookup changelog live from Steam API
+                try:
+                    steam_info = steam_api.get_mod_info(wid)
+                    changelog = steam_info.get("description", "")
+                except Exception:
+                    changelog = ""
+                if changelog:
+                    changelog_lines = changelog.splitlines()
+                    changelog_lines = [line for line in changelog_lines if line.strip()]
+                    if len(changelog_lines) > max_changelog_lines:
+                        changelog_text = "\n".join(changelog_lines[:max_changelog_lines])
+                        changelog_text += "\n[...] (truncated)"
+                    else:
+                        changelog_text = "\n".join(changelog_lines)
+                    changelog_text = format_changelog_with_modname(changelog_text, name)
             msg = {
                 "type": "updated",
                 "title": name,
                 "local_time": local_time,
                 "discord_time": discord_time,
-                "workshop_url": workshop_url,
-                "discord_link_str": discord_link_str,
-                "changelog_text": changelog_text,
-                "changelog_url": changelog_url
+                "changelog_text": changelog_text
             }
             mod_messages.append(msg)
             changes_detected = True
 
+    # Report REMOVED mods
     if show_removed_mods:
         for wid in removed_mods:
             mod = previous_mods_dict[wid]
@@ -264,23 +299,18 @@ def run_mod_check(config, templates=None):
                 "title": mod.get("name", wid),
                 "local_time": "",
                 "discord_time": "",
-                "workshop_url": None,
-                "discord_link_str": "",
-                "changelog_text": "",
-                "changelog_url": None
+                "changelog_text": ""
             })
             changes_detected = True
 
+    # If no changes, emit "no changes" message
     if not changes_detected and not silent_on_no_changes:
         mod_messages.append({
             "type": "no_changes",
             "title": "",
             "local_time": "",
             "discord_time": "",
-            "workshop_url": None,
-            "discord_link_str": "",
-            "changelog_text": "",
-            "changelog_url": None
+            "changelog_text": ""
         })
 
     end_time = time.perf_counter()
@@ -335,13 +365,10 @@ def build_summary_with_mods(config, templates, mod_messages, server_info, mods, 
 
     if output_cfg.get('show_platform', False) and server_info.get('platform'):
         summary_lines.append(f"Platform: {server_info['platform']}")
-
     if output_cfg.get('show_dedicated', False) and server_info.get('dedicated') is not None:
         summary_lines.append(f"Dedicated: {'Yes' if server_info['dedicated'] else 'No'}")
-
     if output_cfg.get('show_island', True) and server_info.get('map'):
         summary_lines.append(f"Island: {server_info['map']}")
-
     if output_cfg.get('show_mod_count', False):
         summary_lines.append(f"Mod Count: {server_info.get('mods_count', len(mods))}")
 
@@ -349,35 +376,19 @@ def build_summary_with_mods(config, templates, mod_messages, server_info, mods, 
         if msg.get("type") == "too_many":
             summary_lines.append(msg.get("summary"))
             continue
-        link_part = ""
-        if msg.get("discord_link_str") and output_to_discord:
-            link_part = msg["discord_link_str"]
-        elif msg.get("workshop_url"):
-            safe_url = break_embed(msg["workshop_url"])
-            link_part = f" ([Workshop]({safe_url}))"
 
         if msg["type"] == "new":
             line = templates.format("output", "mod_new.txt", title=msg["title"])
-            summary_lines.append(f"{line}{link_part}")
+            summary_lines.append(f"{line}")
             if msg.get("changelog_text"):
                 changelog = msg["changelog_text"]
-                # Always use markdown link to avoid Discord embed/preview
-                if output_to_discord and msg.get("changelog_url") and changelog.endswith("(truncated)"):
-                    safe_changelog_url = break_embed(msg['changelog_url'])
-                    changelog += f"\n[Full changelog]({safe_changelog_url})"
                 summary_lines.append(f"Changelog:\n{changelog}")
         elif msg["type"] == "updated":
             timestamp = msg["discord_time"] if output_to_discord else msg["local_time"]
-            line = templates.format(
-                "output", "mod_updated.txt", title=msg["title"], timestamp=timestamp
-            )
-            summary_lines.append(f"{line}{link_part}")
+            line = templates.format("output", "mod_updated.txt", title=msg["title"], timestamp=timestamp)
+            summary_lines.append(f"{line}")
             if msg.get("changelog_text"):
                 changelog = msg["changelog_text"]
-                # Always use markdown link to avoid Discord embed/preview
-                if output_to_discord and msg.get("changelog_url") and changelog.endswith("(truncated)"):
-                    safe_changelog_url = break_embed(msg['changelog_url'])
-                    changelog += f"\n[Full changelog]({safe_changelog_url})"
                 summary_lines.append(f"Changelog:\n{changelog}")
         elif msg["type"] == "removed":
             line = templates.format("output", "mod_removed.txt", title=msg["title"])
@@ -393,10 +404,10 @@ def build_summary_with_mods(config, templates, mod_messages, server_info, mods, 
             summary_lines.append(f"Next reboot scheduled at: {discord_time}")
         else:
             summary_lines.append(f"Next reboot scheduled at: {next_reboot.strftime('%Y-%m-%d %H:%M:%S')}")
-
     return "\n".join(summary_lines)
 
 def log_performance(duration):
+    """Append performance log entry for this run."""
     os.makedirs(os.path.dirname(PERF_LOG_FILE), exist_ok=True)
     perf_entry = {
         "timestamp": datetime.now().isoformat(),
@@ -415,6 +426,7 @@ def log_performance(duration):
         json.dump(records, f, indent=2)
 
 def summarize_performance(last_N=20):
+    """Summarize recent performance logs and log average run time."""
     if not os.path.exists(PERF_LOG_FILE):
         return
     with open(PERF_LOG_FILE, "r") as f:
