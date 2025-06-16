@@ -1,6 +1,31 @@
-git+https://github.com/Yepoleb/dayzquery.git
-git+https://github.com/Yepoleb/python-a2s.git
-requests==2.31.0
+aiohappyeyeballs==2.6.1
+aiohttp==3.12.13
+aiosignal==1.3.2
+annotated-types==0.7.0
+attrs==25.3.0
 beautifulsoup4==4.12.3
-pyyaml==6.0.1
-py-cord==2.6.1
+certifi==2025.6.15
+charset-normalizer==3.4.2
+colorama==0.4.6
+dayzquery @ git+https://github.com/Yepoleb/dayzquery.git@3088bbfb147b77bc7b6a9425581b439889ff3f7f
+discord.py==2.3.2
+frozenlist==1.7.0
+idna==3.10
+iniconfig==2.1.0
+multidict==6.4.4
+packaging==25.0
+pathspec==0.12.1
+pluggy==1.6.0
+propcache==0.3.2
+pydantic==2.11.7
+pydantic_core==2.33.2
+Pygments==2.19.1
+pytest==8.4.0
+python-a2s @ git+https://github.com/Yepoleb/python-a2s.git@b40eb24cdbb06ebd08272f224257fe5a81610e86
+PyYAML==6.0.1
+requests==2.31.0
+soupsieve==2.7
+typing-inspection==0.4.1
+typing_extensions==4.14.0
+urllib3==2.4.0
+yarl==1.20.1
