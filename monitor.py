@@ -8,13 +8,13 @@
 
 import sys
 import traceback
-from config_loader import load_configs, validate_required
-from advanced_logging import AdvancedLogger
-import mod_checker
-from templates import TemplateLoader
+from src.config_loader import load_configs, validate_required
+from src.advanced_logging import AdvancedLogger
+import src.mod_checker as mod_checker
+from src.templates import TemplateLoader
 
 # Import tracking utilities
-from server_monitor_tracker import (
+from src.server_monitor_tracker import (
     detect_mod_changes,
     update_performance,
     load_performance_stats,

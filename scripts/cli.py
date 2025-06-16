@@ -6,9 +6,9 @@
 # License: CC BY-NC 4.0 (see LICENSE file)
 
 import argparse
-from config_loader import load_config
-from logger import setup_logging
-from mod_checker import run_mod_check
+from src.config_loader import load_config
+from src.logger import setup_logging
+from src.mod_checker import run_mod_check
 
 def parse_args():
     parser = argparse.ArgumentParser(description="DayZ Server Monitor CLI")
