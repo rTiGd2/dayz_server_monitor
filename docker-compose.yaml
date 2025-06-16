@@ -1,0 +1,15 @@
+version: "3.9"
+services:
+  dayz-server-monitor:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: dayz-server-monitor
+    volumes:
+      - ./config:/app/config # Editable configs
+      - ./data:/app/data # Persistent data storage (do NOT COPY in Dockerfile)
+      - ./logs:/app/logs # Logs directory
+      - ./output:/app/output # Output directory
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped

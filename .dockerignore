@@ -1,0 +1,38 @@
+# VCS and editor files
+.git/
+.gitignore
+.vscode/
+*.code-workspace
+
+# Python cache, virtual environments, and type check caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.mypy_cache/
+.venv/
+venv/
+
+# OS and IDE junk
+.DS_Store
+Thumbs.db
+
+# Test, dev, and local runtime files
+tests/
+output/
+logs/
+data/
+*.log
+
+# Build artifacts and Docker itself
+docker/
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Miscellaneous
+*.swp
+*.bak
+*.tmp
+*.old
+*.orig

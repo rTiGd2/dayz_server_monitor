@@ -39,8 +39,96 @@ Edit YAML files in the `config/` directory:
 ### 3. Run the monitor
 
 ```sh
-python -m src.monitor
+python -m monitor
 ```
+
+---
+
+## Docker Usage
+
+You can run DayZ Server Monitor in a containerized environment using Docker.
+
+### Clone the Repository
+
+```sh
+git clone https://github.com/rTiGd2/dayz_server_monitor.git
+cd dayz_server_monitor
+```
+
+### Build the Docker image
+
+```sh
+docker build -f docker/Dockerfile -t dayz-server-monitor .
+```
+
+### Start the Container in the Background
+
+```sh
+docker run -d \
+  --name dayz-server-monitor \
+  -v "$(pwd)/config:/app/config" \
+  -v "$(pwd)/data:/app/data" \
+  -v "$(pwd)/logs:/app/logs" \
+  -v "$(pwd)/output:/app/output" \
+  -e CRON_SCHEDULE="*/5 * * * *" \
+  dayz-server-monitor
+```
+
+- The `-d` flag runs the container in detached/background mode.
+- Use `docker logs dayz-server-monitor` to view logs.
+- To stop: `docker stop dayz-server-monitor`
+- To remove: `docker rm dayz-server-monitor`
+
+### Using Docker Compose (Recommended)
+
+You can use [Docker Compose](https://docs.docker.com/compose/) for easier multi-file management and secret handling.
+
+```yaml
+version: "3.9"
+services:
+  dayz-server-monitor:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: dayz-server-monitor
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./output:/app/output
+    environment:
+      # Set the schedule for cron job
+      - CRON_SCHEDULE=*/5 * * * *
+      # Optionally provide API keys via secrets or env (see below)
+      # - STEAM_API_KEY=your_steam_api_key
+      # - DISCORD_WEBHOOK_URL=your_discord_webhook_url
+    secrets:
+      - STEAM_API_KEY
+      - DISCORD_WEBHOOK_URL
+    restart: unless-stopped
+
+secrets:
+  STEAM_API_KEY:
+    file: ./secrets/steam_api_key.txt
+  DISCORD_WEBHOOK_URL:
+    file: ./secrets/discord_webhook_url.txt
+```
+
+#### Build and run with Compose (in background):
+
+```sh
+docker compose up --build -d
+```
+
+#### Docker secrets and environment variables
+
+- **Secrets:** Place your Steam API key and Discord webhook URL in the `secrets/` directory as text files (`steam_api_key.txt`, `discord_webhook_url.txt`).
+  These will be used securely by the container if present.
+- **Environment variables:**
+  If Docker secrets are not provided, you can set `STEAM_API_KEY` and/or `DISCORD_WEBHOOK_URL` as environment variables.
+
+**Order of precedence:**
+Docker Secret > Environment Variable > Config File
 
 ---
 

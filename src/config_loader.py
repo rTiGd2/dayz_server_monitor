@@ -3,6 +3,7 @@
 # Purpose: Load and merge monitor-wide, per-server, defaults, and required config yaml files for multi-server/overrides support.
 #          Now supports required fields within nested blocks (e.g. server.ip) and validates against unwanted top-level ip/port.
 #          Updated: Pydantic integration for model validation, returns both raw and parsed configs.
+#          Updated: Supports Docker secrets and environment variable overrides for Steam API Key and Discord Webhook.
 # Author: Tig Campbell-Moore (firstname[at]lastname[dot]com)
 # License: CC BY-NC 4.0 (see LICENSE file)
 
@@ -12,6 +13,7 @@ from copy import deepcopy
 from typing import Any, Dict, List, Tuple
 from src.config_models import DayZServerMonitorConfig
 from pydantic import ValidationError
+import os
 
 def load_yaml(path: Path) -> Dict[str, Any]:
     """
@@ -75,10 +77,40 @@ def merge_server_blocks(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[
         merge_dicts(merged, override_block)
     return merged
 
+def get_secret_or_env(var_name: str) -> str:
+    """
+    Return the value from Docker secret (file /run/secrets/{var_name}),
+    then from environment variable {var_name}, or None.
+    """
+    secret_path = Path("/run/secrets") / var_name
+    if secret_path.exists():
+        return secret_path.read_text(encoding='utf-8').strip()
+    return os.environ.get(var_name)
+
+def apply_secrets_and_env_overrides(config: Dict[str, Any]) -> None:
+    """
+    Apply Docker secret and environment variable overrides for Steam API key and Discord webhook.
+    Order of precedence: Docker Secret > ENV Variable > Config file value.
+    """
+    # Steam API Key
+    steam_api_key = get_secret_or_env("STEAM_API_KEY")
+    if steam_api_key:
+        if "steam" not in config or not isinstance(config["steam"], dict):
+            config["steam"] = {}
+        config["steam"]["api_key"] = steam_api_key
+
+    # Discord Webhook (per-server)
+    discord_webhook = get_secret_or_env("DISCORD_WEBHOOK_URL")
+    if discord_webhook:
+        if "discord" not in config or not isinstance(config["discord"], dict):
+            config["discord"] = {}
+        config["discord"]["webhook_url"] = discord_webhook
+
 def load_configs(config_dir: str = "config") -> Tuple[List[Dict[str, Any]], Dict[str, Any], List[DayZServerMonitorConfig]]:
     """
     Load configs for all servers, merging defaults, monitor.yaml, and server-specific YAMLs.
     Special handling for 'server' block: merges global (monitor.yaml) 'server' block with per-server override.
+    Applies Docker secrets and environment variable overrides.
     Returns: ([raw_server_configs], required_dict, [validated_pydantic_configs])
     Each validated_pydantic_config is an instance of DayZServerMonitorConfig.
     If a config fails validation, it is skipped and error is printed.
@@ -105,6 +137,10 @@ def load_configs(config_dir: str = "config") -> Tuple[List[Dict[str, Any]], Dict
         # Special handling: merge 'server' block (monitor -> per-server)
         merged['server'] = merge_server_blocks(monitor, server)
         merged["_config_file"] = fname
+
+        # Apply Docker secrets/ENV variable overrides
+        apply_secrets_and_env_overrides(merged)
+
         server_configs.append(merged)
 
     # Fallback: single-server mode (monitor.yaml only)
@@ -114,6 +150,10 @@ def load_configs(config_dir: str = "config") -> Tuple[List[Dict[str, Any]], Dict
         merge_dicts(merged, deepcopy(monitor))
         merged['server'] = merge_server_blocks(monitor, monitor)
         merged["_config_file"] = "monitor.yaml"
+
+        # Apply Docker secrets/ENV variable overrides
+        apply_secrets_and_env_overrides(merged)
+
         server_configs = [merged]
 
     # Validate and parse into Pydantic models
