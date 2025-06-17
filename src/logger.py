@@ -1,7 +1,6 @@
-# DayZ Server Monitor
 # Project: DayZ Server Monitor
 # File: logger.py
-# Purpose: Setup logging system including log level and log splitting
+# Purpose: Setup logging system including log level and log splitting with strict per-level routing
 # Author: Tig Campbell-Moore (firstname[at]lastname[dot]com)
 # License: CC BY-NC 4.0 (see LICENSE file)
 
@@ -10,12 +9,23 @@ from pathlib import Path
 from logging.handlers import RotatingFileHandler
 
 class LevelFilter(logging.Filter):
+    """
+    Filters (allows through) only records of a specific level.
+    """
     def __init__(self, level):
+        super().__init__()
         self.level = level
     def filter(self, record):
         return record.levelno == self.level
 
 def setup_logging(config):
+    """
+    Initialize the logging subsystem using the provided config.
+    - One file per log level: debug, info, error, critical.
+    - Each file only receives messages of its corresponding level.
+    - No message duplication between log files.
+    - Console output is at the configured level or higher.
+    """
     if not config.get("logging", {}).get("enabled", False):
         return
 
@@ -31,19 +41,22 @@ def setup_logging(config):
 
     log_dir.mkdir(parents=True, exist_ok=True)
 
+    # Remove all handlers to avoid duplicates on re-init
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
 
     logger = logging.getLogger()
-    logger.setLevel(log_level)
+    logger.setLevel(logging.DEBUG)  # Capture everything, handlers do filtering
 
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
+    # Console handler (level set by config)
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
     console_handler.setLevel(log_level)
     logger.addHandler(console_handler)
 
+    # Per-level file handlers (no duplication)
     for level_name, filename in log_files.items():
         level = getattr(logging, level_name.upper(), None)
         if level is None:
@@ -55,4 +68,4 @@ def setup_logging(config):
         handler.addFilter(LevelFilter(level))
         logger.addHandler(handler)
 
-    logging.info("Logging initialized.")
+    logging.info("Logging initialized (per-level, non-duplicating).")

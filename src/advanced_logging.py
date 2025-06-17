@@ -182,6 +182,8 @@ class AdvancedLogger:
     """
     Advanced logger with daily/size rotation, compression, and per-server configuration.
     Now skips rotation/archiving if the log file is empty.
+    This logger is intended for specialized logs (such as per-server run logs)
+    and should not be used for global info/error logging (handled by logger.py).
     """
     def __init__(self, config, logtype="error"):
         self.config = config
