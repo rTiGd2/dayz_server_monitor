@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Tuple
 from src.config_models import DayZServerMonitorConfig
 from pydantic import ValidationError
 import os
+import logging
 
 def load_yaml(path: Path) -> Dict[str, Any]:
     """
@@ -113,7 +114,7 @@ def load_configs(config_dir: str = "config") -> Tuple[List[Dict[str, Any]], Dict
     Applies Docker secrets and environment variable overrides.
     Returns: ([raw_server_configs], required_dict, [validated_pydantic_configs])
     Each validated_pydantic_config is an instance of DayZServerMonitorConfig.
-    If a config fails validation, it is skipped and error is printed.
+    If a config fails validation, it is skipped and error is logged.
     """
     config_dir_path = Path(config_dir)
     defaults: Dict[str, Any] = load_yaml(config_dir_path / "config.defaults.yaml")
@@ -166,7 +167,7 @@ def load_configs(config_dir: str = "config") -> Tuple[List[Dict[str, Any]], Dict
             validated = DayZServerMonitorConfig(**conf_for_model)
             validated_pydantic_configs.append(validated)
         except ValidationError as e:
-            print(f"Config validation error in {conf.get('_config_file', 'unknown')}: {e}")
+            logging.error(f"Config validation error in {conf.get('_config_file', 'unknown')}: {e}")
 
     return server_configs, required, validated_pydantic_configs
 
@@ -180,12 +181,18 @@ def validate_required(config: Dict[str, Any], required: Dict[str, Any], logger: 
     # Warn/error if ip/port are present at top level
     for forbidden in ("ip", "port"):
         if forbidden in config:
-            logger.error(f"Config error: '{forbidden}' must be inside the 'server:' block, not top-level.")
+            if logger:
+                logger.error(f"Config error: '{forbidden}' must be inside the 'server:' block, not top-level.")
+            else:
+                logging.error(f"Config error: '{forbidden}' must be inside the 'server:' block, not top-level.")
             is_valid = False
     for req_key, meta in required.items():
         if get_nested(config, req_key) is None:
             desc = meta.get("description", "") if isinstance(meta, dict) else ""
-            logger.error(f"Missing required config option: {req_key}"
-                         + (f" ({desc})" if desc else ""))
+            msg = f"Missing required config option: {req_key}" + (f" ({desc})" if desc else "")
+            if logger:
+                logger.error(msg)
+            else:
+                logging.error(msg)
             is_valid = False
     return is_valid

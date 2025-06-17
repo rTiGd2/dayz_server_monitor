@@ -27,7 +27,7 @@ def query_server(ip, port):
         "mods_count": getattr(ruleset, "mods_count", 0)
     }
 
-    mods = [{'name': mod.name, 'workshop_id': str(mod.workshop_id)} for mod in ruleset.mods]
+    mods = [{'name': mod.name, 'workshop_id': str(mod.workshop_id)} for mod in getattr(ruleset, "mods", [])]
 
     logging.debug(f"Queried server: {info['platform']} on {info['island']} with {len(mods)} mods.")
     return info, mods

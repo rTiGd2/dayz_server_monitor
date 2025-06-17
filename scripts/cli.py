@@ -8,6 +8,7 @@
 import argparse
 from src.config_loader import load_config
 from src.logger import setup_logging
+import logging
 from src.mod_checker import run_mod_check
 
 def parse_args():
@@ -27,6 +28,7 @@ def main():
         config["mod_check_mode"] = args.mode
 
     setup_logging(config)
+    logging.info("Starting monitor (CLI mode)")
     run_mod_check(config)
 
 if __name__ == "__main__":

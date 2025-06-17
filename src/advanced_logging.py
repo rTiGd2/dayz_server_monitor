@@ -182,6 +182,8 @@ class AdvancedLogger:
     """
     Advanced logger with daily/size rotation, compression, and per-server configuration.
     Now skips rotation/archiving if the log file is empty.
+    This logger is intended for specialized logs (such as per-server run logs)
+    and should not be used for global info/error logging (handled by logger.py).
     """
     def __init__(self, config, logtype="error"):
         self.config = config
@@ -196,16 +198,26 @@ class AdvancedLogger:
         self._logger = None
         self.setup_logger()
 
+    def get_configured_level(self):
+        """
+        Get the logger level from config. Defaults to INFO.
+        """
+        # Check for 'logging' section in config
+        level_str = self.config.get("logging", {}).get("level", "INFO")
+        return getattr(logging, level_str.upper(), logging.INFO)
+
     def setup_logger(self):
         """
-        Set up the logger object and file handler.
+        Set up the logger object and file handler, with log level from config.
         """
         self._logger = logging.getLogger(f"{self.config_file}_{self.logtype}")
         self._logger.propagate = False
-        self._logger.setLevel(logging.INFO)
+        log_level = self.get_configured_level()
+        self._logger.setLevel(log_level)
         handler = logging.FileHandler(self.logfile, encoding='utf-8')
         formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
         handler.setFormatter(formatter)
+        handler.setLevel(log_level)  # Ensure handler also respects log level
         self._logger.handlers = []
         self._logger.addHandler(handler)
 
@@ -251,16 +263,20 @@ class AdvancedLogger:
 
     def info(self, msg):
         self.rotate_logs()
-        self._logger.info(msg)
+        if self._logger.isEnabledFor(logging.INFO):
+            self._logger.info(msg)
 
     def error(self, msg):
         self.rotate_logs()
-        self._logger.error(msg)
+        if self._logger.isEnabledFor(logging.ERROR):
+            self._logger.error(msg)
 
     def warning(self, msg):
         self.rotate_logs()
-        self._logger.warning(msg)
+        if self._logger.isEnabledFor(logging.WARNING):
+            self._logger.warning(msg)
 
     def debug(self, msg):
         self.rotate_logs()
-        self._logger.debug(msg)
+        if self._logger.isEnabledFor(logging.DEBUG):
+            self._logger.debug(msg)
