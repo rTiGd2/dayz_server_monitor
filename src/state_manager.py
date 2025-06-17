@@ -16,15 +16,22 @@ def load_state():
     if not STATE_FILE.exists():
         logging.info("No previous state file found.")
         return {}
-    with STATE_FILE.open('r') as f:
-        state = json.load(f)
-        logging.debug(f"Loaded previous state with {len(state)} mods.")
-        return state
+    try:
+        with STATE_FILE.open('r') as f:
+            state = json.load(f)
+            logging.debug(f"Loaded previous state with {len(state)} mods.")
+            return state
+    except Exception as e:
+        logging.error(f"Failed to load previous state: {e}")
+        return {}
 
 def save_state(state):
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    if STATE_FILE.exists():
-        shutil.copy(STATE_FILE, str(STATE_FILE) + ".bak")
-    with STATE_FILE.open('w') as f:
-        json.dump(state, f, indent=4)
-    logging.debug(f"Saved state with {len(state)} mods.")
+    try:
+        if STATE_FILE.exists():
+            shutil.copy(STATE_FILE, str(STATE_FILE) + ".bak")
+        with STATE_FILE.open('w') as f:
+            json.dump(state, f, indent=4)
+        logging.debug(f"Saved state with {len(state)} mods.")
+    except Exception as e:
+        logging.error(f"Failed to save state: {e}")

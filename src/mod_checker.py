@@ -237,6 +237,7 @@ def run_mod_check(config, templates=None):
                 except Exception:
                     changelog = ""
                 if changelog:
+                    changelog = bbcode_to_discord(changelog)
                     changelog_lines = changelog.splitlines()
                     # Remove blank lines after BBCode/HTML strip
                     changelog_lines = [line for line in changelog_lines if line.strip()]
@@ -272,6 +273,7 @@ def run_mod_check(config, templates=None):
                 except Exception:
                     changelog = ""
                 if changelog:
+                    changelog = bbcode_to_discord(changelog)
                     changelog_lines = changelog.splitlines()
                     changelog_lines = [line for line in changelog_lines if line.strip()]
                     if len(changelog_lines) > max_changelog_lines:

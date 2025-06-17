@@ -6,24 +6,20 @@
 # License: CC BY-NC 4.0 (see LICENSE file)
 
 import logging
-from pathlib import Path
 
 output_messages = []
 
 def send_output(config, message):
-    if config['output'].get("to_console", True):
-        print(message)
-
+    # Store all messages in output_messages for use by summary/discord/etc.
     output_messages.append(message)
 
-    if config['output'].get("to_file", True):
-        file_path = Path(config['output'].get("file_path", "output/last_run.txt"))
-        try:
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            with file_path.open("a", encoding="utf-8") as f:
-                f.write(message + "\n")
-        except Exception as e:
-            logging.error(f"Failed to write to output file: {e}")
+    # Only output to console/file if enabled in config
+    if config['output'].get("to_console", False):
+        logging.info(message)
+
+    # If output to file, use the main logging system—do not write files directly here
+    # This preserves the new logging policy: all output is routed through logging
+    # If a dedicated file output is needed, this must be handled by a FileHandler in logger.py
 
 def get_all_output():
     return "\n".join(output_messages)
