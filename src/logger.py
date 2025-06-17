@@ -25,6 +25,7 @@ def setup_logging(config):
     - Each file only receives messages of its corresponding level.
     - No message duplication between log files.
     - Console output is at the configured level or higher.
+    - Debug log file is only active if loglevel is set to DEBUG.
     """
     if not config.get("logging", {}).get("enabled", False):
         return
@@ -46,7 +47,7 @@ def setup_logging(config):
         logging.root.removeHandler(handler)
 
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)  # Capture everything, handlers do filtering
+    logger.setLevel(log_level)  # Set root logger to configured level
 
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
@@ -61,6 +62,11 @@ def setup_logging(config):
         level = getattr(logging, level_name.upper(), None)
         if level is None:
             continue
+
+        # Only add debug handler if log_level is DEBUG
+        if level_name.lower() == "debug" and log_level != logging.DEBUG:
+            continue
+
         filepath = log_dir / filename
         handler = RotatingFileHandler(filepath, maxBytes=5_000_000, backupCount=3)
         handler.setLevel(level)
@@ -68,4 +74,4 @@ def setup_logging(config):
         handler.addFilter(LevelFilter(level))
         logger.addHandler(handler)
 
-    logging.info("Logging initialized (per-level, non-duplicating).")
+    logging.info("Logging initialized (per-level, non-duplicating, debug log only if debug level).")
