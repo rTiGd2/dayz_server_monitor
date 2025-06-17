@@ -1,2 +1,2 @@
 PATH=/usr/local/bin:/usr/bin:/bin
-${CRON_SCHEDULE} root python3 /app/monitor.py >> /app/logs/cron.log 2>&1
+${CRON_SCHEDULE} python3 /app/monitor.py >> /app/logs/cron.log 2>&1
