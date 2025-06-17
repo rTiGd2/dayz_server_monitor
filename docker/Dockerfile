@@ -15,6 +15,7 @@ COPY scripts/ ./scripts/
 COPY version.txt ./
 # Copy Docker-specific scripts and config
 COPY docker/entrypoint.sh /entrypoint.sh
+COPY docker/crontab.template /tmp/crontab.template
 RUN chmod +x /entrypoint.sh
 
 # Install Python dependencies (after copying requirements.txt)
