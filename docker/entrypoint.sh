@@ -5,8 +5,7 @@ echo "🔧 Configuring cron schedule..."
 export CRON_SCHEDULE="${CRON_SCHEDULE:-*/3 * * * *}"
 
 # Inject schedule into template
-envsubst < /tmp/crontab.template > /etc/cron.d/dayzmonitor
-chmod 0644 /etc/cron.d/dayzmonitor
+envsubst < /tmp/crontab.template > /app/crontab
 
-echo "⏰ Starting cron daemon with schedule: $CRON_SCHEDULE"
-cron -f
+echo "⏰ Starting supercronic with schedule: $CRON_SCHEDULE"
+exec /usr/local/bin/supercronic /app/crontab
