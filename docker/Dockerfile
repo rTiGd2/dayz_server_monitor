@@ -14,7 +14,6 @@ COPY locales/ ./locales/
 COPY scripts/ ./scripts/
 COPY version.txt ./
 # Copy Docker-specific scripts and config
-COPY docker/crontab.template /etc/cron.d/template
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
